@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dater - Find Your Match</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'brand-pink': '#F91880',
+              'brand-purple': '#A020F0',
+              'brand-light': '#FFD7F3',
+              'dark-1': '#121212',
+              'dark-2': '#1E1E1E',
+              'dark-3': '#2A2A2A',
+              'light-1': '#F5F5F5',
+              'light-2': '#E0E0E0',
+            },
+            boxShadow: {
+              'glow-pink': '0 0 15px rgba(249, 24, 128, 0.5)',
+              'glow-purple': '0 0 15px rgba(160, 32, 240, 0.5)',
+              'glow-green': '0 0 15px rgba(74, 222, 128, 0.6)',
+              'glow-blue': '0 0 15px rgba(59, 130, 246, 0.6)',
+              'glow-yellow': '0 0 15px rgba(234, 179, 8, 0.6)',
+              'glow-orange': '0 0 15px rgba(249, 115, 22, 0.6)',
+              'glow-teal': '0 0 15px rgba(20, 184, 166, 0.6)',
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.1.1/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.12.0",
+    "react/": "https://esm.sh/react@^19.1.1/",
+    "react": "https://esm.sh/react@^19.1.1"
+  }
+}
+</script>
+</head>
+  <body class="bg-dark-1 text-light-1">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
