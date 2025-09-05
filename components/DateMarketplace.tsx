@@ -1,20 +1,21 @@
-import React from 'react';
-import { DatePost, User, Gender } from '../types';
+import React, { useState, useMemo } from 'react';
+import { DatePost, User, Gender, DateCategory } from '../types';
 import { SkeletonLoader } from './SkeletonLoader';
-import { MapPinIcon } from '../constants';
+import { MapPinIcon, AlertTriangleIcon } from '../constants';
+import { DATE_CATEGORIES } from '../constants';
 import type { ColorTheme } from '../constants';
 
 interface DateCardProps {
     datePost: DatePost;
     allUsers: User[];
-    onExpressInterest: (dateId: number) => void;
+    onToggleInterest: (dateId: number) => void;
     isInterested: boolean;
     isCreator: boolean;
     gender?: Gender;
     onViewProfile: (user: User) => void;
 }
 
-const DateCard: React.FC<DateCardProps> = ({ datePost, allUsers, onExpressInterest, isInterested, isCreator, gender, onViewProfile }) => {
+const DateCard: React.FC<DateCardProps> = ({ datePost, allUsers, onToggleInterest, isInterested, isCreator, gender, onViewProfile }) => {
     const creator = allUsers.find(u => u.id === datePost.createdBy);
 
     if (!creator) return null;
@@ -51,6 +52,16 @@ const DateCard: React.FC<DateCardProps> = ({ datePost, allUsers, onExpressIntere
                 <h3 className={`text-xl font-bold ${titleClass}`}>{datePost.title}</h3>
                 <p className="text-gray-300 mt-2">{datePost.description}</p>
             </div>
+            {datePost.categories && datePost.categories.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                    {datePost.categories.map(category => (
+                        <div key={category} className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${DATE_CATEGORIES[category]?.color || 'bg-gray-500/20 text-gray-400 border-gray-500/30'}`}>
+                           {category === 'Adult (18+)' && <AlertTriangleIcon className="w-3 h-3" />}
+                           {category}
+                        </div>
+                    ))}
+                </div>
+            )}
             <div className="border-t border-dark-3 pt-4 flex flex-col gap-2 text-sm text-gray-400">
                 <div className="flex justify-between items-start">
                     <div>
@@ -69,11 +80,10 @@ const DateCard: React.FC<DateCardProps> = ({ datePost, allUsers, onExpressIntere
             </div>
             {!isCreator && (
                  <button 
-                    onClick={() => onExpressInterest(datePost.id)} 
-                    disabled={isInterested}
-                    className={`mt-2 w-full py-2 rounded-lg font-bold transition-all duration-300 ${isInterested ? 'bg-green-600 text-white cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/30'}`}
+                    onClick={() => onToggleInterest(datePost.id)} 
+                    className={`mt-2 w-full py-2 rounded-lg font-bold transition-all duration-300 ${isInterested ? 'bg-gray-600 text-white hover:bg-gray-700' : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/30'}`}
                  >
-                    {isInterested ? "You're Interested!" : "I'm Interested!"}
+                    {isInterested ? "I'm Not Interested" : "I'm Interested!"}
                  </button>
             )}
             {isCreator && (
@@ -87,7 +97,7 @@ const DateCard: React.FC<DateCardProps> = ({ datePost, allUsers, onExpressIntere
 interface DateMarketplaceProps {
     datePosts: DatePost[];
     allUsers: User[];
-    onExpressInterest: (dateId: number) => void;
+    onToggleInterest: (dateId: number) => void;
     currentUserId: number;
     gender?: Gender;
     isLoading: boolean;
@@ -95,7 +105,15 @@ interface DateMarketplaceProps {
     activeColorTheme: ColorTheme;
 }
 
-const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, onExpressInterest, currentUserId, gender, isLoading, onViewProfile, activeColorTheme }) => {
+const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, onToggleInterest, currentUserId, gender, isLoading, onViewProfile, activeColorTheme }) => {
+    const [activeCategory, setActiveCategory] = useState<DateCategory | 'All'>('All');
+
+    const filteredDatePosts = useMemo(() => {
+        if (activeCategory === 'All') return datePosts;
+        return datePosts.filter(post => post.categories.includes(activeCategory));
+    }, [datePosts, activeCategory]);
+
+    const allCategories = ['All' as const, ...Object.keys(DATE_CATEGORIES) as DateCategory[]];
     
     const DateCardSkeleton = () => (
         <div className="bg-dark-2 rounded-2xl p-6 border border-dark-3">
@@ -121,7 +139,24 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
 
     return (
         <div className="max-w-2xl mx-auto">
-             <h2 className={`text-3xl font-bold text-center mb-8 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>Date Marketplace</h2>
+             <h2 className={`text-3xl font-bold text-center mb-4 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>Date Marketplace</h2>
+             
+             <div className="flex flex-wrap justify-center gap-2 mb-8">
+                {allCategories.map(category => (
+                    <button
+                        key={category}
+                        onClick={() => setActiveCategory(category)}
+                        className={`px-4 py-1.5 text-sm font-semibold rounded-full transition-all duration-300 border ${
+                            activeCategory === category
+                                ? `${activeColorTheme.bg} text-white border-transparent ${activeColorTheme.glow}`
+                                : 'bg-dark-3 border-dark-3 text-gray-400 hover:bg-dark-3/80 hover:border-gray-600'
+                        }`}
+                    >
+                        {category}
+                    </button>
+                ))}
+             </div>
+
              <div className="grid grid-cols-1 gap-6">
                 {isLoading ? (
                     <>
@@ -129,7 +164,7 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
                         <DateCardSkeleton />
                     </>
                 ) : (
-                    datePosts.map(post => {
+                    filteredDatePosts.map(post => {
                         const isInterested = post.applicants.includes(currentUserId);
                         const isCreator = post.createdBy === currentUserId;
                         return (
@@ -137,7 +172,7 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
                                 key={post.id} 
                                 datePost={post} 
                                 allUsers={allUsers}
-                                onExpressInterest={onExpressInterest}
+                                onToggleInterest={onToggleInterest}
                                 isInterested={isInterested}
                                 isCreator={isCreator}
                                 gender={gender}
@@ -145,6 +180,12 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
                             />
                         );
                     })
+                )}
+                {!isLoading && filteredDatePosts.length === 0 && (
+                    <div className="text-center text-gray-400 py-12">
+                        <h3 className="text-xl font-bold text-gray-300">No dates found in this category.</h3>
+                        <p className="mt-2">Try a different category or check back later!</p>
+                    </div>
                 )}
              </div>
         </div>

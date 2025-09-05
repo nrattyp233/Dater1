@@ -41,7 +41,7 @@ const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrad
                     <div className="flex justify-center items-center gap-3 mb-3">
                         <CrownIcon className="w-8 h-8 text-yellow-400" />
                         <h2 id="monetization-title" className="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-400 text-transparent bg-clip-text">
-                            Dater Premium
+                            Create-A-Date Premium
                         </h2>
                     </div>
                     <p className="text-center text-gray-400">

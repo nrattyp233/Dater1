@@ -54,12 +54,13 @@ interface MyDatesManagerProps {
     myDates: DatePost[];
     allUsers: User[];
     onChooseApplicant: (dateId: number, applicantId: number) => void;
+    onDeleteDate: (dateId: number) => void;
     gender?: Gender;
     onViewProfile: (user: User) => void;
     activeColorTheme: ColorTheme;
 }
 
-const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onChooseApplicant, gender, onViewProfile, activeColorTheme }) => {
+const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onChooseApplicant, onDeleteDate, gender, onViewProfile, activeColorTheme }) => {
     const [selectedDateId, setSelectedDateId] = useState<number | null>(myDates.length > 0 ? myDates[0].id : null);
 
     const selectedDate = myDates.find(d => d.id === selectedDateId);
@@ -83,6 +84,14 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
         window.open(url, '_blank', 'noopener,noreferrer');
     };
 
+    const handleDeleteClick = () => {
+        if (selectedDate) {
+            if (window.confirm('Are you sure you want to permanently delete this date post? This action cannot be undone.')) {
+                onDeleteDate(selectedDate.id);
+            }
+        }
+    };
+
     if (myDates.length === 0) {
         return (
             <div className="text-center text-gray-400">
@@ -104,9 +113,9 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
                         </button>
                     ))}
                 </div>
-                <div className="md:col-span-2 bg-dark-2 p-6 rounded-2xl min-h-[300px]">
+                <div className="md:col-span-2 bg-dark-2 p-6 rounded-2xl min-h-[300px] flex flex-col">
                     {selectedDate ? (
-                        <div>
+                        <div className="flex flex-col flex-grow">
                             <h3 className={`text-2xl font-bold ${titleClass}`}>{selectedDate.title}</h3>
                             <div className="flex justify-between items-center mt-1 mb-6">
                                 <p className="text-gray-400">Location: {selectedDate.location}</p>
@@ -121,30 +130,40 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
                             </div>
                             
                             <h4 className="font-semibold mb-4">Applicants:</h4>
-                            {selectedDate.applicants.length > 0 ? (
-                                <div className="space-y-3">
-                                    {selectedDate.applicants.map(applicantId => {
-                                        const user = allUsers.find(u => u.id === applicantId);
-                                        if (!user) return null;
-                                        return (
-                                            <ApplicantCard
-                                                key={user.id}
-                                                user={user}
-                                                onChoose={() => onChooseApplicant(selectedDate.id, user.id)}
-                                                isChosen={selectedDate.chosenApplicantId === user.id}
-                                                hasChosenSomeoneElse={selectedDate.chosenApplicantId !== null && selectedDate.chosenApplicantId !== user.id}
-                                                isMaleTheme={isMaleTheme}
-                                                onViewProfile={onViewProfile}
-                                            />
-                                        )
-                                    })}
-                                </div>
-                            ) : (
-                                <p className="text-gray-500">No one has expressed interest yet. Check back soon!</p>
-                            )}
+                            <div className="flex-grow">
+                                {selectedDate.applicants.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {selectedDate.applicants.map(applicantId => {
+                                            const user = allUsers.find(u => u.id === applicantId);
+                                            if (!user) return null;
+                                            return (
+                                                <ApplicantCard
+                                                    key={user.id}
+                                                    user={user}
+                                                    onChoose={() => onChooseApplicant(selectedDate.id, user.id)}
+                                                    isChosen={selectedDate.chosenApplicantId === user.id}
+                                                    hasChosenSomeoneElse={selectedDate.chosenApplicantId !== null && selectedDate.chosenApplicantId !== user.id}
+                                                    isMaleTheme={isMaleTheme}
+                                                    onViewProfile={onViewProfile}
+                                                />
+                                            )
+                                        })}
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-500">No one has expressed interest yet. Check back soon!</p>
+                                )}
+                            </div>
+                            <div className="border-t border-dark-3 mt-6 pt-6">
+                                <button 
+                                    onClick={handleDeleteClick}
+                                    className="w-full py-2 rounded-lg font-bold bg-red-800/80 text-red-200 hover:bg-red-800 transition-colors"
+                                >
+                                    Delete This Date
+                                </button>
+                            </div>
                         </div>
                     ) : (
-                        <p className="text-center text-gray-500">Select a date to see applicants.</p>
+                        <p className="text-center text-gray-500 m-auto">Select a date to see applicants.</p>
                     )}
                 </div>
             </div>

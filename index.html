@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dater - Find Your Match</title>
+    <title>Create-A-Date - Find Your Match</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -43,6 +43,33 @@
   }
 }
 </script>
+<style>
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  @keyframes slideInRightFadeOut {
+    0% { transform: translateX(100%); opacity: 0; }
+    20% { transform: translateX(-10%); opacity: 1; }
+    80% { transform: translateX(-10%); opacity: 1; }
+    100% { transform: translateX(-10%); opacity: 0; }
+  }
+  @keyframes slideInLeftFadeOut {
+    0% { transform: translateX(-100%); opacity: 0; }
+    20% { transform: translateX(10%); opacity: 1; }
+    80% { transform: translateX(10%); opacity: 1; }
+    100% { transform: translateX(10%); opacity: 0; }
+  }
+  .animate-slide-in-right {
+      animation: slideInRightFadeOut 2.5s ease-in-out forwards;
+  }
+  .animate-slide-in-left {
+      animation: slideInLeftFadeOut 2.5s ease-in-out forwards;
+  }
+</style>
 </head>
   <body class="bg-dark-1 text-light-1">
     <div id="root"></div>

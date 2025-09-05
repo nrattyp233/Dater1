@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { User, DateIdea, LocationSuggestion } from '../types';
+import { User, DateIdea, LocationSuggestion, Message, DateCategory } from '../types';
 
 // Ensure you have your API_KEY in the environment variables
 const API_KEY = process.env.API_KEY;
@@ -127,7 +127,7 @@ export const getCompatibilityScore = async (currentUser: User, otherUser: User):
     const prompt = `Analyze the compatibility between these two user profiles for a romantic relationship. 
     User 1: Name: ${currentUser.name}, Bio: "${currentUser.bio}", Interests: ${currentUser.interests.join(', ')}.
     User 2: Name: ${otherUser.name}, Bio: "${otherUser.bio}", Interests: ${otherUser.interests.join(', ')}.
-    Based on their bios and interests, provide a compatibility score from 0 to 100. Also, provide a short, one-sentence summary explaining a key reason for their potential compatibility.`;
+    Based on their bios and interests, provide a compatibility score from 0 to 100. Also, provide a short, fun, "vibe check" summary (around 15-25 words) of their potential dynamic. For example: "You both love adventure and spicy food—your dates could be epic! But Carlos is an early bird and you're a night owl, so you might have to compromise on that morning hike."`;
 
     try {
         const response = await ai.models.generateContent({
@@ -140,7 +140,7 @@ export const getCompatibilityScore = async (currentUser: User, otherUser: User):
                     type: Type.OBJECT,
                     properties: {
                         score: { type: Type.NUMBER, description: "A compatibility score from 0 to 100." },
-                        summary: { type: Type.STRING, description: "A short summary of compatibility." }
+                        summary: { type: Type.STRING, description: "A short, fun, 'vibe check' summary of compatibility." }
                     },
                     required: ["score", "summary"]
                 }
@@ -278,5 +278,178 @@ export const suggestLocations = async (title: string, description: string): Prom
     } catch (error) {
         console.error("Error suggesting locations:", error);
         throw new Error("Failed to suggest locations with AI.");
+    }
+};
+
+export const generateChatReplies = async (currentUser: User, otherUser: User, messages: Message[]): Promise<string[]> => {
+    if (!API_KEY) throw new Error("Gemini API key not configured.");
+    
+    const conversationHistory = messages.slice(-6).map(m => {
+        const speaker = m.senderId === currentUser.id ? currentUser.name : otherUser.name;
+        return `${speaker}: ${m.text}`;
+    }).join('\n');
+
+    const prompt = `You are an AI conversation coach for a dating app. User "${currentUser.name}" is talking to "${otherUser.name}". 
+    
+    Their profile info:
+    - ${currentUser.name} (me): Bio: "${currentUser.bio}", Interests: ${currentUser.interests.join(', ')}
+    - ${otherUser.name}: Bio: "${otherUser.bio}", Interests: ${otherUser.interests.join(', ')}
+    
+    Recent conversation history:
+    ${conversationHistory}
+    
+    Based on the context, generate exactly 3 short, engaging, and creative replies for ${currentUser.name} to send. The replies should encourage more conversation. Do not just repeat things from the bio.`;
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                temperature: 0.9,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        replies: {
+                            type: Type.ARRAY,
+                            description: "A list of three unique chat reply suggestions.",
+                            items: { type: Type.STRING }
+                        }
+                    },
+                    required: ["replies"]
+                }
+            }
+        });
+        const result = JSON.parse(response.text.trim());
+        return result.replies;
+    } catch (error) {
+        console.error("Error generating chat replies:", error);
+        throw new Error("Failed to generate replies with AI.");
+    }
+};
+
+export const optimizePhotoOrder = async (photos: string[]): Promise<string[]> => {
+    if (!API_KEY) throw new Error("Gemini API key not configured.");
+    
+    const imageParts = photos.map(photoDataUrl => {
+        const [header, base64Data] = photoDataUrl.split(',');
+        const mimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
+        return {
+            inlineData: {
+                mimeType,
+                data: base64Data
+            }
+        };
+    });
+
+    const prompt = `You are a dating profile expert. I have uploaded ${photos.length} photos for a dating profile. Analyze them based on factors like clear face visibility, lighting, variety (headshot, full body, activity), and overall engagement potential. Your task is to reorder them to create the best possible first impression. The first photo should be the strongest.
+
+    Return a JSON object with the new order of indices. For example, if the best order is the 3rd photo, then the 1st, then the 2nd (from the original order), you should return: { "newOrder": [2, 0, 1] }.`;
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: [{ text: prompt }, ...imageParts] },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        newOrder: {
+                            type: Type.ARRAY,
+                            description: "An array of indices representing the new optimal photo order.",
+                            items: { type: Type.NUMBER }
+                        }
+                    },
+                    required: ["newOrder"]
+                }
+            }
+        });
+        
+        const result = JSON.parse(response.text.trim());
+        const newOrder: number[] = result.newOrder;
+
+        if (!newOrder || newOrder.length !== photos.length) {
+            throw new Error("AI returned an invalid photo order.");
+        }
+
+        const reorderedPhotos = newOrder.map(index => photos[index]);
+        return reorderedPhotos;
+
+    } catch (error) {
+        console.error("Error optimizing photo order:", error);
+        throw new Error("Failed to optimize photos with AI.");
+    }
+};
+
+export const generateAppBackground = async (prompt: string): Promise<string> => {
+    if (!API_KEY) throw new Error("Gemini API key not configured.");
+
+    try {
+        const response = await ai.models.generateImages({
+            model: 'imagen-4.0-generate-001',
+            prompt: prompt,
+            config: {
+                numberOfImages: 1,
+                outputMimeType: 'image/png',
+                aspectRatio: '9:16', // Tall aspect ratio for mobile
+            },
+        });
+
+        if (!response.generatedImages || response.generatedImages.length === 0) {
+            throw new Error("AI did not return an image.");
+        }
+
+        const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+        return `data:image/png;base64,${base64ImageBytes}`;
+    } catch (error) {
+        console.error("Error generating app background:", error);
+        throw new Error("Failed to generate background with AI.");
+    }
+};
+
+export const categorizeDatePost = async (title: string, description: string): Promise<DateCategory[]> => {
+    if (!API_KEY) throw new Error("Gemini API key not configured.");
+
+    const availableCategories: DateCategory[] = ['Food & Drink', 'Outdoors & Adventure', 'Arts & Culture', 'Nightlife', 'Relaxing & Casual', 'Active & Fitness', 'Adult (18+)'];
+    
+    const prompt = `Analyze the following date idea and assign it up to two relevant categories from this list: [${availableCategories.join(', ')}].
+    
+    If the content is explicitly sexual, mature, or suggestive in a way that is inappropriate for a general audience, you MUST include the "Adult (18+)" category.
+    
+    Date Title: "${title}"
+    Date Description: "${description}"
+    
+    Return a JSON object with a "categories" key containing an array of the chosen category strings.`;
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                temperature: 0.2,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        categories: {
+                            type: Type.ARRAY,
+                            description: "A list of up to two relevant categories for the date idea.",
+                            items: {
+                                type: Type.STRING
+                            }
+                        }
+                    },
+                    required: ["categories"]
+                }
+            }
+        });
+
+        const result = JSON.parse(response.text.trim());
+        // Filter to ensure only valid categories are returned
+        return (result.categories || []).filter((cat: string) => availableCategories.includes(cat as DateCategory));
+    } catch (error) {
+        console.error("Error categorizing date post:", error);
+        throw new Error("Failed to categorize date with AI.");
     }
 };

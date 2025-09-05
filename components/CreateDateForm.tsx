@@ -7,7 +7,7 @@ import LocationSuggestionsModal from './LocationSuggestionsModal';
 import type { ColorTheme } from '../constants';
 
 interface CreateDateFormProps {
-    onCreateDate: (newDate: Omit<DatePost, 'id' | 'createdBy' | 'applicants' | 'chosenApplicantId'>) => void;
+    onCreateDate: (newDate: Omit<DatePost, 'id' | 'createdBy' | 'applicants' | 'chosenApplicantId' | 'categories'>) => Promise<void>;
     currentUser: User;
     activeColorTheme: ColorTheme;
     onPremiumFeatureClick: () => void;
@@ -21,6 +21,7 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUs
     const [dateTime, setDateTime] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isGeneratingFull, setIsGeneratingFull] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const { showToast } = useToast();
     
     // New state for location suggestions
@@ -101,18 +102,20 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUs
         setLocation(selectedLocation);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if(!title || !description || !location || !dateTime) {
             showToast("Please fill all fields.", 'error');
             return;
         }
-        onCreateDate({ title, description, location, dateTime });
+        setIsSubmitting(true);
+        await onCreateDate({ title, description, location, dateTime });
         setTitle('');
         setIdea('');
         setDescription('');
         setLocation('');
         setDateTime('');
+        setIsSubmitting(false);
     };
 
     return (
@@ -186,7 +189,9 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUs
                         </div>
                     </div>
                     
-                    <button type="submit" className={`w-full py-3 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r ${primaryButtonGradient} text-white hover:opacity-90 ${primaryGlow}`}>Post Date</button>
+                    <button type="submit" disabled={isSubmitting} className={`w-full py-3 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r ${primaryButtonGradient} text-white hover:opacity-90 ${primaryGlow} disabled:opacity-60 disabled:cursor-wait`}>
+                        {isSubmitting ? 'Posting...' : 'Post Date'}
+                    </button>
                 </form>
             </div>
             <LocationSuggestionsModal

@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { View, User, DatePost } from './types';
-import { CURRENT_USER_ID, colorThemes, ColorTheme } from './constants';
+import { View, User, DatePost, Message, Badge } from './types';
+import { CURRENT_USER_ID, colorThemes, ColorTheme, BADGES, DATE_SPARK_PROMPTS, HeartIcon, CalendarIcon, PlusIcon, ChatIcon } from './constants';
 import * as api from './services/api';
+import { categorizeDatePost } from './services/geminiService';
 import { useToast, ToastProvider } from './contexts/ToastContext';
 
 import Header from './components/Header';
@@ -11,16 +12,92 @@ import CreateDateForm from './components/CreateDateForm';
 import MyDatesManager from './components/MyDatesManager';
 import ProfileSettings from './components/ProfileSettings';
 import MatchesView from './components/MatchesView';
+import ChatView from './components/ChatView';
 import ProfileModal from './components/ProfileModal';
 import IcebreakerModal from './components/IcebreakerModal';
 import ProfileFeedbackModal from './components/ProfileFeedbackModal';
 import DatePlannerModal from './components/DatePlannerModal';
 import MonetizationModal from './components/MonetizationModal';
+import Auth from './components/Auth';
+
+// --- START: Onboarding Component ---
+const ONBOARDING_STEPS = [
+  {
+    title: "Welcome to Create-A-Date!",
+    text: "Let's take a quick tour of how to find your next great connection.",
+    icon: (props: any) => <HeartIcon {...props} />,
+  },
+  {
+    title: "The Swipe Deck",
+    text: "This is where the classic fun happens. Swipe right on profiles you like, and left on those you don't. It's your main way to discover new people.",
+    icon: (props: any) => <HeartIcon {...props} />,
+  },
+  {
+    title: "The Date Marketplace",
+    text: "Browse unique date ideas posted by other users. If you see one you like, express your interest and see if you get chosen!",
+    icon: (props: any) => <CalendarIcon {...props} />,
+  },
+  {
+    title: "Create-A-Date",
+    text: "Post your own date ideas! Use our AI tools to make your description more exciting and attract the right person to join you.",
+    icon: (props: any) => <PlusIcon {...props} />,
+  },
+  {
+    title: "Chats & Matches",
+    text: "Once you match with someone, you can start a conversation here. Our AI can even help you break the ice!",
+    icon: (props: any) => <ChatIcon {...props} />,
+  },
+  {
+    title: "You're All Set!",
+    text: "That's the basics. Explore, connect, and create amazing dates. Have fun!",
+    icon: (props: any) => <HeartIcon {...props} />,
+  },
+];
+
+const OnboardingGuide: React.FC<{ onFinish: () => void }> = ({ onFinish }) => {
+    const [step, setStep] = useState(0);
+    const currentStep = ONBOARDING_STEPS[step];
+    const isLastStep = step === ONBOARDING_STEPS.length - 1;
+
+    const handleNext = () => {
+        if (isLastStep) {
+            onFinish();
+        } else {
+            setStep(s => s + 1);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+            <div className="bg-dark-2 rounded-2xl w-full max-w-sm p-8 text-center border border-dark-3 shadow-lg flex flex-col items-center">
+                <div className="w-16 h-16 mb-4 bg-gradient-to-br from-brand-pink to-brand-purple rounded-full flex items-center justify-center text-white">
+                    {currentStep.icon({ className: "w-8 h-8" })}
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">{currentStep.title}</h2>
+                <p className="text-gray-300 mb-6">{currentStep.text}</p>
+                <button
+                    onClick={handleNext}
+                    className="w-full py-3 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-brand-pink to-brand-purple text-white hover:opacity-90"
+                >
+                    {isLastStep ? "Let's Go!" : "Next"}
+                </button>
+                 {!isLastStep && (
+                    <button onClick={onFinish} className="mt-3 text-sm text-gray-500 hover:text-gray-300">
+                        Skip Tour
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+};
+// --- END: Onboarding Component ---
 
 const MainApp: React.FC = () => {
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [currentView, setCurrentView] = useState<View>(View.Swipe);
     const [users, setUsers] = useState<User[]>([]);
     const [datePosts, setDatePosts] = useState<DatePost[]>([]);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [matches, setMatches] = useState<number[]>([4, 6, 2, 5]); // Pre-populate with matches for demo
     const [swipedLeftIds, setSwipedLeftIds] = useState<number[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -31,6 +108,9 @@ const MainApp: React.FC = () => {
     const [activeColorTheme, setActiveColorTheme] = useState<ColorTheme>(colorThemes[0]);
     const lastColorIndex = useRef(0);
 
+    // State for customizable app background
+    const [appBackground, setAppBackground] = useState<string | null>(null);
+
     // State for modals, centralized here
     const [selectedUserForModal, setSelectedUserForModal] = useState<User | null>(null);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -40,31 +120,50 @@ const MainApp: React.FC = () => {
     const [usersForDatePlanning, setUsersForDatePlanning] = useState<[User, User] | null>(null);
     const [isMonetizationModalOpen, setIsMonetizationModalOpen] = useState(false);
 
+    // New feature states
+    const [showOnboarding, setShowOnboarding] = useState(false);
+    const [dailySpark, setDailySpark] = useState<{ prompt: string; isCompleted: boolean } | null>(null);
+
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
                 setIsLoading(true);
-                const [fetchedUsers, fetchedDatePosts] = await Promise.all([
-                    api.getUsers(),
-                    api.getDatePosts()
+                const savedBackground = localStorage.getItem('appBackground');
+                if (savedBackground) setAppBackground(savedBackground);
+
+                const [fetchedUsers, fetchedDatePosts, fetchedMessages] = await Promise.all([
+                    api.getUsers(), api.getDatePosts(), api.getMessages()
                 ]);
                 setUsers(fetchedUsers);
                 setDatePosts(fetchedDatePosts);
+                setMessages(fetchedMessages);
             } catch (error) {
                 showToast('Failed to load app data. Please refresh.', 'error');
             } finally {
                 setIsLoading(false);
             }
         };
-        fetchInitialData();
-    }, [showToast]);
+
+        if (isAuthenticated) {
+            fetchInitialData();
+             // Onboarding check
+            const hasOnboarded = localStorage.getItem('hasOnboarded');
+            if (!hasOnboarded) {
+                setShowOnboarding(true);
+            }
+            // Daily Spark logic
+            const today = new Date().toDateString();
+            const lastCompletion = localStorage.getItem('dailySparkCompletionDate');
+            const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+            const prompt = DATE_SPARK_PROMPTS[dayOfYear % DATE_SPARK_PROMPTS.length];
+            setDailySpark({ prompt, isCompleted: today === lastCompletion });
+        }
+    }, [showToast, isAuthenticated]);
 
     useEffect(() => {
         let newIndex;
-        do {
-          newIndex = Math.floor(Math.random() * colorThemes.length);
-        } while (colorThemes.length > 1 && newIndex === lastColorIndex.current);
-
+        do { newIndex = Math.floor(Math.random() * colorThemes.length); } 
+        while (colorThemes.length > 1 && newIndex === lastColorIndex.current);
         lastColorIndex.current = newIndex;
         setActiveColorTheme(colorThemes[newIndex]);
     }, [currentView]);
@@ -75,6 +174,13 @@ const MainApp: React.FC = () => {
     const matchedUsers = useMemo(() => {
         return users.filter(user => matches.includes(user.id));
     }, [users, matches]);
+    
+    const sentMessageCount = useMemo(() => {
+        if (!currentUser || currentUser.isPremium) return 0;
+        return messages.filter(m => m.senderId === CURRENT_USER_ID).length;
+    }, [messages, currentUser]);
+    
+    const FREE_MESSAGE_LIMIT = 20;
 
     const usersForSwiping = useMemo(() => {
         if (!currentUser) return [];
@@ -92,6 +198,18 @@ const MainApp: React.FC = () => {
     }, [users, matches, swipedLeftIds, currentUser]);
     
     const myDates = datePosts.filter(d => d.createdBy === CURRENT_USER_ID);
+    
+    const earnBadge = (badgeId: Badge['id']) => {
+        const user = users.find(u => u.id === CURRENT_USER_ID);
+        if (!user || user.earnedBadgeIds?.includes(badgeId)) {
+            return;
+        }
+
+        showToast(`Badge Unlocked: ${BADGES[badgeId].name}!`, 'success');
+        setUsers(prevUsers => prevUsers.map(u => 
+            u.id === CURRENT_USER_ID ? { ...u, earnedBadgeIds: [...(u.earnedBadgeIds || []), badgeId] } : u
+        ));
+    };
 
     const handleSwipe = (userId: number, direction: 'left' | 'right') => {
         setLastSwipedUserId(userId);
@@ -106,39 +224,55 @@ const MainApp: React.FC = () => {
     
     const handleRecall = () => {
         if (!lastSwipedUserId) return;
-        
-        // Remove the user from whichever list they were added to
         setMatches(prev => prev.filter(id => id !== lastSwipedUserId));
         setSwipedLeftIds(prev => prev.filter(id => id !== lastSwipedUserId));
-
         const recalledUser = users.find(u => u.id === lastSwipedUserId);
         showToast(`Recalled ${recalledUser?.name || 'profile'}.`, 'info');
         setLastSwipedUserId(null);
     };
 
-    const handleExpressInterest = (dateId: number) => {
+    const handleToggleInterest = (dateId: number) => {
         setDatePosts(prevPosts => prevPosts.map(post => {
-            if (post.id === dateId && !post.applicants.includes(CURRENT_USER_ID)) {
-                return { ...post, applicants: [...post.applicants, CURRENT_USER_ID] };
+            if (post.id === dateId) {
+                const isInterested = post.applicants.includes(CURRENT_USER_ID);
+                const applicantMessage = isInterested ? "You are no longer interested in this date." : "You've expressed interest in this date!";
+                showToast(applicantMessage, isInterested ? 'info' : 'success');
+                return isInterested ? { ...post, applicants: post.applicants.filter(id => id !== CURRENT_USER_ID) } : { ...post, applicants: [...post.applicants, CURRENT_USER_ID] };
             }
             return post;
         }));
     };
 
-    const handleCreateDate = (newDateData: Omit<DatePost, 'id' | 'createdBy' | 'applicants' | 'chosenApplicantId'>) => {
-        const newDate = api.createDate(newDateData, CURRENT_USER_ID);
-        setDatePosts(prev => [newDate, ...prev]);
-        showToast('Your date has been posted!', 'success');
-        setCurrentView(View.Dates);
+    const handleCreateDate = async (newDateData: Omit<DatePost, 'id' | 'createdBy' | 'applicants' | 'chosenApplicantId' | 'categories'>) => {
+        if (!currentUser) return;
+
+        showToast('AI is categorizing your date...', 'info');
+        try {
+            const categories = await categorizeDatePost(newDateData.title, newDateData.description);
+            const newDate = api.createDate({ ...newDateData, categories }, CURRENT_USER_ID);
+
+            setDatePosts(prev => [newDate, ...prev]);
+            showToast('Your date has been posted!', 'success');
+            setCurrentView(View.Dates);
+
+            // Badge Logic
+            if (myDates.length === 0) earnBadge('first_date');
+            if (myDates.length === 2) earnBadge('prolific_planner');
+            const adventurousKeywords = ['hike', 'outdoor', 'adventure', 'explore', 'nature', 'mountain'];
+            const dateText = `${newDateData.title.toLowerCase()} ${newDateData.description.toLowerCase()}`;
+            if (adventurousKeywords.some(keyword => dateText.includes(keyword))) earnBadge('adventurous');
+        } catch (error: any) {
+            showToast(error.message || 'Failed to post date.', 'error');
+        }
+    };
+
+    const handleDeleteDate = (dateId: number) => {
+        setDatePosts(prevPosts => prevPosts.filter(post => post.id !== dateId));
+        showToast('Date post has been deleted.', 'info');
     };
 
     const handleChooseApplicant = (dateId: number, applicantId: number) => {
-        setDatePosts(prevPosts => prevPosts.map(post => {
-            if (post.id === dateId) {
-                return { ...post, chosenApplicantId: applicantId };
-            }
-            return post;
-        }));
+        setDatePosts(prevPosts => prevPosts.map(post => post.id === dateId ? { ...post, chosenApplicantId: applicantId } : post));
         const applicant = users.find(u => u.id === applicantId);
         showToast(`You've chosen ${applicant?.name} for your date!`, 'success');
     };
@@ -148,89 +282,93 @@ const MainApp: React.FC = () => {
         showToast('Profile saved successfully!', 'success');
     };
 
+    const handleSendMessage = async (receiverId: number, text: string) => {
+        if (!currentUser) return;
+        if (!currentUser.isPremium && sentMessageCount >= FREE_MESSAGE_LIMIT) {
+            handleOpenMonetizationModal();
+            showToast(`You've used your ${FREE_MESSAGE_LIMIT} free messages. Upgrade to Premium for unlimited chat!`, 'info');
+            return;
+        }
+
+        if (messages.filter(m => m.senderId === currentUser.id).length === 4) earnBadge('starter');
+        
+        try {
+            const newMessage = await api.sendMessage(CURRENT_USER_ID, receiverId, text);
+            setMessages(prev => [...prev, newMessage]);
+        } catch (error) {
+            showToast('Failed to send message.', 'error');
+        }
+    };
+    
+    const handleSetAppBackground = (background: string | null) => {
+        setAppBackground(background);
+        if (background) localStorage.setItem('appBackground', background);
+        else localStorage.removeItem('appBackground');
+    };
+    
+    const handleCompleteSpark = () => {
+        setCurrentView(View.Create);
+        showToast('Let\'s create that date!', 'info');
+        localStorage.setItem('dailySparkCompletionDate', new Date().toDateString());
+        if (dailySpark) setDailySpark({ ...dailySpark, isCompleted: true });
+    };
+
     // Modal Handlers
-    const handleViewProfile = (user: User) => {
-        setSelectedUserForModal(user);
-        setIsProfileModalOpen(true);
-    };
-
-    const handleCloseProfile = () => {
-        setIsProfileModalOpen(false);
-        setTimeout(() => setSelectedUserForModal(null), 300);
-    };
-
-    const handleGenerateIcebreakersFromProfile = (user: User) => {
-        setIsProfileModalOpen(false);
-        setSelectedUserForModal(user);
-        setIsIcebreakerModalOpen(true);
-    };
-
-    const handleCloseIcebreakers = () => {
-        setIsIcebreakerModalOpen(false);
-        setTimeout(() => setSelectedUserForModal(null), 300);
-    };
-
+    const handleViewProfile = (user: User) => { setSelectedUserForModal(user); setIsProfileModalOpen(true); };
+    const handleCloseProfile = () => { setIsProfileModalOpen(false); setTimeout(() => setSelectedUserForModal(null), 300); };
+    const handleGenerateIcebreakersFromProfile = (user: User) => { setIsProfileModalOpen(false); setSelectedUserForModal(user); setIsIcebreakerModalOpen(true); };
+    const handleCloseIcebreakers = () => { setIsIcebreakerModalOpen(false); setTimeout(() => setSelectedUserForModal(null), 300); };
     const handleGetProfileFeedback = () => setIsFeedbackModalOpen(true);
     const handleCloseProfileFeedback = () => setIsFeedbackModalOpen(false);
-
-    const handlePlanDate = (matchedUser: User) => {
-        if (currentUser) {
-            setUsersForDatePlanning([currentUser, matchedUser]);
-            setIsDatePlannerModalOpen(true);
-        }
-    };
-    const handleCloseDatePlanner = () => {
-        setIsDatePlannerModalOpen(false);
-        setTimeout(() => setUsersForDatePlanning(null), 300);
-    };
-
-    // Monetization Handlers
+    const handlePlanDate = (matchedUser: User) => { if (currentUser) { setUsersForDatePlanning([currentUser, matchedUser]); setIsDatePlannerModalOpen(true); } };
+    const handleCloseDatePlanner = () => { setIsDatePlannerModalOpen(false); setTimeout(() => setUsersForDatePlanning(null), 300); };
     const handleOpenMonetizationModal = () => setIsMonetizationModalOpen(true);
     const handleCloseMonetizationModal = () => setIsMonetizationModalOpen(false);
-    const handleUpgradeToPremium = () => {
-        if (currentUser) {
-            const updatedUser = { ...currentUser, isPremium: true };
-            setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
-            handleCloseMonetizationModal();
-            showToast('Congratulations! You are now a Dater Premium member.', 'success');
-        }
-    };
+    const handleUpgradeToPremium = () => { if (currentUser) { handleUpdateProfile({ ...currentUser, isPremium: true }); handleCloseMonetizationModal(); showToast('Congratulations! You are now a Create-A-Date Premium member.', 'success'); } };
+    const handleOnboardingComplete = () => { localStorage.setItem('hasOnboarded', 'true'); setShowOnboarding(false); };
+
+    const handleSignOut = () => { setIsAuthenticated(false); setCurrentView(View.Swipe); showToast("You've been signed out.", "info"); };
 
     const renderView = () => {
-        if (!currentUser && isLoading) {
-            return <div className="text-center">Loading Dater...</div>;
-        }
-        if (!currentUser && !isLoading) {
-            return <div className="text-center text-red-500">Error: Could not load current user data.</div>;
-        }
+        if (!currentUser && isLoading) return <div className="text-center">Loading Create-A-Date...</div>;
+        if (!currentUser && !isLoading) return <div className="text-center text-red-500">Error: Could not load current user data.</div>;
 
         switch (currentView) {
             case View.Swipe:
-                return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} />;
+                return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} dailySpark={dailySpark} onCompleteSpark={handleCompleteSpark} />;
             case View.Dates:
-                return <DateMarketplace datePosts={datePosts} allUsers={users} onExpressInterest={handleExpressInterest} currentUserId={CURRENT_USER_ID} gender={currentUser?.gender} isLoading={isLoading} onViewProfile={handleViewProfile} activeColorTheme={activeColorTheme} />;
+                return <DateMarketplace datePosts={datePosts} allUsers={users} onToggleInterest={handleToggleInterest} currentUserId={CURRENT_USER_ID} gender={currentUser?.gender} isLoading={isLoading} onViewProfile={handleViewProfile} activeColorTheme={activeColorTheme} />;
             case View.Create:
                 return <CreateDateForm onCreateDate={handleCreateDate} currentUser={currentUser!} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
             case View.Matches:
                 return <MatchesView matchedUsers={matchedUsers} currentUser={currentUser!} onViewProfile={handleViewProfile} onPlanDate={handlePlanDate} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
+             case View.Chat:
+                return <ChatView currentUser={currentUser!} matchedUsers={matchedUsers} allUsers={users} messages={messages} onSendMessage={handleSendMessage} onViewProfile={handleViewProfile} isChatDisabled={!currentUser?.isPremium && sentMessageCount >= FREE_MESSAGE_LIMIT} activeColorTheme={activeColorTheme} />;
             case View.MyDates:
-                return <MyDatesManager myDates={myDates} allUsers={users} onChooseApplicant={handleChooseApplicant} gender={currentUser?.gender} onViewProfile={handleViewProfile} activeColorTheme={activeColorTheme} />;
+                return <MyDatesManager myDates={myDates} allUsers={users} onChooseApplicant={handleChooseApplicant} onDeleteDate={handleDeleteDate} gender={currentUser?.gender} onViewProfile={handleViewProfile} activeColorTheme={activeColorTheme} />;
             case View.Profile:
-                return <ProfileSettings currentUser={currentUser!} onSave={handleUpdateProfile} onGetFeedback={handleGetProfileFeedback} activeColorTheme={activeColorTheme} />;
+                return <ProfileSettings currentUser={currentUser!} onSave={handleUpdateProfile} onGetFeedback={handleGetProfileFeedback} activeColorTheme={activeColorTheme} onSignOut={handleSignOut} onPremiumFeatureClick={handleOpenMonetizationModal} onSetAppBackground={handleSetAppBackground} />;
             default:
-                return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} />;
+                return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} dailySpark={dailySpark} onCompleteSpark={handleCompleteSpark}/>;
         }
     };
 
+    if (!isAuthenticated) {
+        return <Auth onAuthSuccess={() => setIsAuthenticated(true)} />;
+    }
+
     return (
-        <div className="min-h-screen bg-dark-1 font-sans">
+        <div 
+             className="min-h-screen font-sans bg-cover bg-center bg-fixed" 
+             style={{ backgroundImage: appBackground ? `linear-gradient(rgba(18, 18, 18, 0.7), rgba(18, 18, 18, 0.7)), url(${appBackground})` : 'none', backgroundColor: '#121212' }}
+        >
+            {showOnboarding && <OnboardingGuide onFinish={handleOnboardingComplete} />}
             <Header currentView={currentView} setCurrentView={setCurrentView} activeColorTheme={activeColorTheme} />
             <main className="pt-28 pb-10 px-4 container mx-auto">
                 {renderView()}
             </main>
-
             {isProfileModalOpen && <ProfileModal user={selectedUserForModal} onClose={handleCloseProfile} onGenerateIcebreakers={handleGenerateIcebreakersFromProfile} gender={currentUser?.gender} />}
-            {isIcebreakerModalOpen && <IcebreakerModal user={selectedUserForModal} onClose={handleCloseIcebreakers} gender={currentUser?.gender} />}
+            {isIcebreakerModalOpen && <IcebreakerModal user={selectedUserForModal} onClose={handleCloseIcebreakers} gender={currentUser?.gender} onSendIcebreaker={(message) => { if(selectedUserForModal) { handleSendMessage(selectedUserForModal.id, message); handleCloseIcebreakers(); setCurrentView(View.Chat); } }} />}
             {isFeedbackModalOpen && <ProfileFeedbackModal user={currentUser!} onClose={handleCloseProfileFeedback} gender={currentUser?.gender}/>}
             {isDatePlannerModalOpen && <DatePlannerModal users={usersForDatePlanning} onClose={handleCloseDatePlanner} gender={currentUser?.gender}/>}
             {isMonetizationModalOpen && <MonetizationModal onClose={handleCloseMonetizationModal} onUpgrade={handleUpgradeToPremium} />}

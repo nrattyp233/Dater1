@@ -1,4 +1,5 @@
 import React from 'react';
+import { Badge, DateCategory } from './types';
 
 // SVG Icons
 export const HeartIcon = ({ className }: { className?: string }) => (
@@ -73,6 +74,30 @@ export const MapPinIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
+export const AlertTriangleIcon = ({ className }: { className?: string }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+  </svg>
+);
+
+// Badge Icons
+export const TrophyIcon = ({ className }: { className?: string }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2c-5.52 0-10 4.48-10 10s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-2-6h4v-2h-4v2zm-2-4h8v-2h-8v2z" />
+        <path d="M18 6h-2v2h2V6zm-4 0h-4v2h4V6zm-6 0H6v2h2V6zm10 8h-2v2h2v-2zm-4 0h-4v2h4v-2zm-6 0H6v2h2v-2z" stroke="currentColor" strokeWidth="1" />
+        <path d="M12,5 C10.89,5 10,5.89 10,7 C10,8.11 10.89,9 12,9 C13.11,9 14,8.11 14,7 C14,5.89 13.11,5 12,5 L12,5 Z M12,11 C9.24,11 7,13.24 7,16 L17,16 C17,13.24 14.76,11 12,11 L12,11 Z" />
+    </svg>
+);
+export const MountainIcon = ({ className }: { className?: string }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M14 6l-3.75 5 2.85 3.8-1.6 1.2C9.81 13.75 7 10 7 10l-6 8h22L14 6z" />
+    </svg>
+);
+export const MessagePlusIcon = ({ className }: { className?: string }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-3 9h-4v4h-2v-4H7V9h4V5h2v4h4v2z" />
+    </svg>
+);
 
 export const CURRENT_USER_ID = 1;
 
@@ -87,3 +112,50 @@ export const colorThemes = [
 ];
 
 export type ColorTheme = typeof colorThemes[0];
+
+export const BADGES: Record<Badge['id'], Badge> = {
+  first_date: {
+    id: 'first_date',
+    name: 'First Date Posted',
+    description: 'You posted your very first date idea!',
+    icon: TrophyIcon,
+  },
+  adventurous: {
+    id: 'adventurous',
+    name: 'Adventurous Planner',
+    description: 'You posted a date idea for the great outdoors!',
+    icon: MountainIcon,
+  },
+  starter: {
+    id: 'starter',
+    name: 'Conversation Starter',
+    description: "You've sent over 5 messages and kept the chats going!",
+    icon: MessagePlusIcon,
+  },
+  prolific_planner: {
+    id: 'prolific_planner',
+    name: 'Prolific Planner',
+    description: 'You have posted 3 or more date ideas!',
+    icon: CalendarIcon,
+  }
+};
+
+export const DATE_SPARK_PROMPTS = [
+    "Post a date idea for a rainy day.",
+    "What's a perfect first date that costs less than $20?",
+    "Share a date idea inspired by your favorite movie.",
+    "Plan a creative date that involves learning a new skill together.",
+    "What's the most adventurous date you can think of?",
+    "Describe a cozy, relaxing evening date.",
+    "Invent a food-themed date."
+];
+
+export const DATE_CATEGORIES: Record<DateCategory, { name: DateCategory; color: string; }> = {
+  'Food & Drink': { name: 'Food & Drink', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
+  'Outdoors & Adventure': { name: 'Outdoors & Adventure', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+  'Arts & Culture': { name: 'Arts & Culture', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+  'Nightlife': { name: 'Nightlife', color: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' },
+  'Relaxing & Casual': { name: 'Relaxing & Casual', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
+  'Active & Fitness': { name: 'Active & Fitness', color: 'bg-lime-500/20 text-lime-400 border-lime-500/30' },
+  'Adult (18+)': { name: 'Adult (18+)', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+};

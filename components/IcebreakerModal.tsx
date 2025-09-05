@@ -8,9 +8,10 @@ interface IcebreakerModalProps {
     user: User | null;
     onClose: () => void;
     gender?: Gender;
+    onSendIcebreaker: (message: string) => void;
 }
 
-const IcebreakerModal: React.FC<IcebreakerModalProps> = ({ user, onClose, gender }) => {
+const IcebreakerModal: React.FC<IcebreakerModalProps> = ({ user, onClose, gender, onSendIcebreaker }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [icebreakers, setIcebreakers] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -83,9 +84,17 @@ const IcebreakerModal: React.FC<IcebreakerModalProps> = ({ user, onClose, gender
                         {icebreakers.map((icebreaker, index) => (
                             <div key={index} className="bg-dark-3 p-4 rounded-lg flex justify-between items-center gap-2">
                                 <p className="text-gray-200 flex-1">{icebreaker}</p>
-                                <button onClick={() => handleCopy(icebreaker)} className="bg-gray-600 text-white text-sm px-3 py-1 rounded-md font-semibold hover:bg-gray-500 transition">
-                                    Copy
-                                </button>
+                                <div className="flex gap-2 flex-shrink-0">
+                                    <button onClick={() => handleCopy(icebreaker)} className="bg-gray-600 text-white text-sm px-3 py-1 rounded-md font-semibold hover:bg-gray-500 transition">
+                                        Copy
+                                    </button>
+                                    <button 
+                                        onClick={() => onSendIcebreaker(icebreaker)} 
+                                        className={`text-white text-sm px-3 py-1 rounded-md font-semibold transition ${isMaleTheme ? 'bg-green-700 hover:bg-green-600' : 'bg-brand-pink hover:bg-brand-pink/80'}`}
+                                    >
+                                        Send
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>

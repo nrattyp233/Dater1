@@ -23,7 +23,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, setCurrentView, activeColo
     <header className="fixed top-0 left-0 right-0 z-50 bg-dark-2/80 backdrop-blur-sm">
       <div className="container mx-auto px-4 h-20 flex justify-between items-center">
         <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-emerald-500 text-transparent bg-clip-text">
-          Dater
+          Create-A-Date
         </h1>
         <nav className="flex items-center space-x-1 bg-dark-3 p-1 rounded-full">
           <NavButton isActive={currentView === View.Swipe} onClick={() => setCurrentView(View.Swipe)} ariaLabel="Swipe profiles" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
@@ -35,7 +35,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, setCurrentView, activeColo
           <NavButton isActive={currentView === View.Create} onClick={() => setCurrentView(View.Create)} ariaLabel="Create a date" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
             <PlusIcon className="w-6 h-6" />
           </NavButton>
-          <NavButton isActive={currentView === View.Matches} onClick={() => setCurrentView(View.Matches)} ariaLabel="My matches" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
+          <NavButton isActive={currentView === View.Chat} onClick={() => setCurrentView(View.Chat)} ariaLabel="My chats" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
             <ChatIcon className="w-6 h-6" />
           </NavButton>
           <NavButton isActive={currentView === View.MyDates} onClick={() => setCurrentView(View.MyDates)} ariaLabel="My dates" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
