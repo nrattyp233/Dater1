@@ -62,6 +62,12 @@ export const LightbulbIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
+export const BrainIcon = ({ className }: { className?: string }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M16.5 7.5c0-1.29-1.03-2.5-2.5-2.5s-2.5 1.21-2.5 2.5c0 .92.54 1.74 1.3 2.19l-.51 1.54c-1.3-.49-2.29-1.74-2.29-3.23 0-1.93 1.57-3.5 3.5-3.5s3.5 1.57 3.5 3.5c0 .92-.37 1.75-.95 2.36l-.8-.86c.21-.29.35-.64.35-1zM9 13v-2H7v2h2zm6 0v-2h-2v2h2zm-9-4h2V7H6v2zm6 0h2V7h-2v2zm3-1.5c0-1.93-1.57-3.5-3.5-3.5S8.5 5.57 8.5 7.5c0 .92.37 1.75.95 2.36l.8-.86C10.04 8.74 9.5 7.92 9.5 7c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5c0 .92-.54 1.74-1.3 2.19l.51 1.54c1.3-.49 2.29-1.74 2.29-3.23zM21 11.5c0-1.55-1.09-2.88-2.58-3.35l-.78-2.33C16.92 3.65 14.66 2 12 2S7.08 3.65 6.36 5.82l-.78 2.33C4.09 8.62 3 9.95 3 11.5c0 1.93 1.57 3.5 3.5 3.5h.5v2c0 .55.45 1 1 1h7c.55 0 1-.45 1-1v-2h.5c1.93 0 3.5-1.57 3.5-3.5zM15 17H9v-2h6v2z"/>
+    </svg>
+);
+
 export const CrownIcon = ({ className }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="currentColor">
         <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3H5a2 2 0 00-2 2v1h20v-1a2 2 0 00-2-2z"/>
@@ -140,14 +146,14 @@ export const BADGES: Record<Badge['id'], Badge> = {
   }
 };
 
-export const DATE_SPARK_PROMPTS = [
-    "Post a date idea for a rainy day.",
-    "What's a perfect first date that costs less than $20?",
-    "Share a date idea inspired by your favorite movie.",
-    "Plan a creative date that involves learning a new skill together.",
-    "What's the most adventurous date you can think of?",
-    "Describe a cozy, relaxing evening date.",
-    "Invent a food-themed date."
+export const WEEKLY_CHALLENGE_PROMPTS = [
+    { theme: "Foodie Week", prompt: "This week's challenge: plan the ultimate date for a food lover!" },
+    { theme: "Movie Magic", prompt: "This week's challenge: design a date inspired by your favorite movie." },
+    { theme: "Budget Ballers", prompt: "This week's challenge: create an amazing date that costs less than $20." },
+    { theme: "Adventure Awaits", prompt: "This week's challenge: post the most adventurous date you can imagine." },
+    { theme: "Cozy & Casual", prompt: "This week's challenge: describe the perfect cozy, relaxing date night." },
+    { theme: "Learn Something New", prompt: "This week's challenge: plan a creative date that involves learning a new skill." },
+    { theme: "Night Owl's Dream", prompt: "This week's challenge: what does the perfect night out on the town look like?" },
 ];
 
 export const DATE_CATEGORIES: Record<DateCategory, { name: DateCategory; color: string; }> = {

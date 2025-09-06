@@ -453,3 +453,68 @@ export const categorizeDatePost = async (title: string, description: string): Pr
         throw new Error("Failed to categorize date with AI.");
     }
 };
+
+export const getProfileVibe = async (user: User): Promise<string> => {
+  if (!API_KEY) throw new Error("Gemini API key not configured.");
+
+  const prompt = `Based on this user's profile, generate a short, snappy 'vibe' (10-15 words) that summarizes their personality for their dating profile. Make it sound cool and intriguing. Do not use hashtags.
+
+  User Profile:
+  Bio: "${user.bio}"
+  Interests: ${user.interests.join(', ')}
+
+  Return only the vibe text.`;
+
+  try {
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+            temperature: 0.8,
+            topP: 0.9,
+        }
+    });
+
+    return response.text.trim().replace(/^"|"$/g, ''); // Remove surrounding quotes if any
+  } catch (error) {
+    console.error("Error generating profile vibe:", error);
+    throw new Error("Failed to generate profile vibe with AI.");
+  }
+};
+
+export const getWingmanTip = async (currentUser: User, otherUser: User, messages: Message[]): Promise<string> => {
+    if (!API_KEY) throw new Error("Gemini API key not configured.");
+
+    const conversationHistory = messages.slice(-8).map(m => {
+        const speaker = m.senderId === currentUser.id ? 'Me' : otherUser.name;
+        return `${speaker}: ${m.text}`;
+    }).join('\n');
+
+    const prompt = `You are an AI wingman and dating coach. User "${currentUser.name}" is talking to "${otherUser.name}". 
+    
+    Their profile info:
+    - ${otherUser.name}'s Interests: ${otherUser.interests.join(', ')}
+    
+    Recent conversation:
+    ${conversationHistory}
+    
+    Based on the conversation, provide one short, encouraging, and actionable tip for me (${currentUser.name}) to say next. The tip should help advance the conversation naturally. Examples: "You both like hiking, suggest a trail!", "Good vibe! Ask them about their weekend.", "Time to be bold! Ask them out for that coffee."
+    
+    Keep the tip under 15 words. Return only the tip text.`;
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                temperature: 0.9,
+                topP: 0.95,
+                thinkingConfig: { thinkingBudget: 0 }
+            }
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Error generating wingman tip:", error);
+        throw new Error("Failed to generate wingman tip with AI.");
+    }
+};

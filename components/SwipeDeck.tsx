@@ -1,42 +1,44 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { User } from '../types';
-import { HeartIcon, XIcon, UndoIcon, SparklesIcon, CrownIcon, LightbulbIcon } from '../constants';
+import { HeartIcon, XIcon, UndoIcon, SparklesIcon, CrownIcon, CalendarIcon } from '../constants';
 import { SkeletonLoader } from './SkeletonLoader';
-import { getCompatibilityScore } from '../services/geminiService';
+import { getCompatibilityScore, getProfileVibe } from '../services/geminiService';
 
-// --- START: DateSpark Component ---
-const DateSpark: React.FC<{ prompt: string; onComplete: () => void; }> = ({ prompt, onComplete }) => {
+// --- START: WeeklyChallenge Component ---
+const WeeklyChallenge: React.FC<{ prompt: string; theme: string; onComplete: () => void; }> = ({ prompt, theme, onComplete }) => {
     const [isVisible, setIsVisible] = useState(true);
 
     if (!isVisible) return null;
 
     return (
-        <div className="w-full max-w-sm mx-auto mb-4 bg-dark-2 border-2 border-dashed border-cyan-500/50 rounded-2xl p-4 text-center animate-fade-in">
-             <div className="flex items-center justify-center gap-2 text-cyan-400 font-bold mb-2">
-                <LightbulbIcon className="w-5 h-5" />
-                Daily Date Spark
+        <div className="w-full max-w-sm mx-auto mb-4 bg-dark-2 border-2 border-dashed border-purple-500/50 rounded-2xl p-4 text-center animate-fade-in relative">
+             <div className="flex items-center justify-center gap-2 text-purple-400 font-bold mb-2">
+                <CalendarIcon className="w-5 h-5" />
+                Weekly Challenge: {theme}
             </div>
             <p className="text-gray-300 italic mb-3">"{prompt}"</p>
             <button
                 onClick={onComplete}
-                className="bg-cyan-600 text-white px-4 py-1.5 rounded-lg font-semibold hover:bg-cyan-700 transition"
+                className="bg-purple-600 text-white px-4 py-1.5 rounded-lg font-semibold hover:bg-purple-700 transition"
             >
-                Post This Date!
+                Take the Challenge!
             </button>
             <button onClick={() => setIsVisible(false)} className="absolute -top-2 -right-2 text-gray-500 hover:text-white">&times;</button>
         </div>
     );
 };
-// --- END: DateSpark Component ---
+// --- END: WeeklyChallenge Component ---
 
 interface SwipeCardProps {
   user: User;
   onSwipe: (direction: 'left' | 'right') => void;
   compatibility: { score: number; summary: string; } | null;
   isCompatibilityLoading: boolean;
+  profileVibe: string | null;
+  isVibeLoading: boolean;
 }
 
-const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, compatibility, isCompatibilityLoading }) => {
+const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, compatibility, isCompatibilityLoading, profileVibe, isVibeLoading }) => {
   const [dragState, setDragState] = useState({ x: 0, isDragging: false, startX: 0 });
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -137,6 +139,19 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, compatibility, isC
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
         <div className="absolute bottom-0 left-0 p-6 text-white w-full pointer-events-none">
           <h2 className="text-3xl font-bold">{user.name}, {user.age}</h2>
+          
+           {(isVibeLoading || profileVibe) && (
+             <div className="mt-2 min-h-[24px]">
+                {isVibeLoading && <SkeletonLoader className="h-4 w-3/4 rounded" />}
+                {profileVibe && (
+                    <div className="flex items-center gap-2 animate-fade-in">
+                        <SparklesIcon className="w-4 h-4 text-cyan-300 flex-shrink-0" />
+                        <p className="text-sm italic text-cyan-200">"{profileVibe}"</p>
+                    </div>
+                )}
+            </div>
+          )}
+          
           <p className="mt-2 text-light-2">{user.bio}</p>
           <div className="mt-4 flex flex-wrap gap-2">
             {user.interests.map(interest => (
@@ -185,13 +200,15 @@ interface SwipeDeckProps {
     canRecall: boolean;
     isLoading: boolean;
     onPremiumFeatureClick: () => void;
-    dailySpark: { prompt: string; isCompleted: boolean } | null;
-    onCompleteSpark: () => void;
+    weeklyChallenge: { theme: string; prompt: string; isCompleted: boolean } | null;
+    onCompleteChallenge: () => void;
 }
 
-const SwipeDeck: React.FC<SwipeDeckProps> = ({ users, currentUser, onSwipe, onRecall, canRecall, isLoading, onPremiumFeatureClick, dailySpark, onCompleteSpark }) => {
+const SwipeDeck: React.FC<SwipeDeckProps> = ({ users, currentUser, onSwipe, onRecall, canRecall, isLoading, onPremiumFeatureClick, weeklyChallenge, onCompleteChallenge }) => {
   const [compatibility, setCompatibility] = useState<{ score: number; summary: string } | null>(null);
   const [isCompatibilityLoading, setIsCompatibilityLoading] = useState(false);
+  const [profileVibe, setProfileVibe] = useState<string | null>(null);
+  const [isVibeLoading, setIsVibeLoading] = useState(false);
   const [showMatchAnimation, setShowMatchAnimation] = useState(false);
   const [showMissAnimation, setShowMissAnimation] = useState(false);
   
@@ -200,13 +217,26 @@ const SwipeDeck: React.FC<SwipeDeckProps> = ({ users, currentUser, onSwipe, onRe
   useEffect(() => {
     if (topUser && currentUser) {
         setIsCompatibilityLoading(true);
+        setIsVibeLoading(true);
         setCompatibility(null);
-        getCompatibilityScore(currentUser, topUser)
-            .then(setCompatibility)
-            .catch(err => {
-                console.error("Failed to get compatibility score:", err);
-            })
-            .finally(() => setIsCompatibilityLoading(false));
+        setProfileVibe(null);
+
+        const fetchAIFeatures = async () => {
+            try {
+                const [compat, vibe] = await Promise.all([
+                    getCompatibilityScore(currentUser, topUser),
+                    getProfileVibe(topUser)
+                ]);
+                setCompatibility(compat);
+                setProfileVibe(vibe);
+            } catch (err) {
+                 console.error("Failed to get AI features:", err);
+            } finally {
+                setIsCompatibilityLoading(false);
+                setIsVibeLoading(false);
+            }
+        };
+        fetchAIFeatures();
     }
   }, [topUser, currentUser]);
   
@@ -260,7 +290,7 @@ const SwipeDeck: React.FC<SwipeDeckProps> = ({ users, currentUser, onSwipe, onRe
 
   return (
     <div className="w-full max-w-sm mx-auto h-full flex flex-col items-center">
-      {dailySpark && !dailySpark.isCompleted && <DateSpark prompt={dailySpark.prompt} onComplete={onCompleteSpark} />}
+      {weeklyChallenge && !weeklyChallenge.isCompleted && <WeeklyChallenge theme={weeklyChallenge.theme} prompt={weeklyChallenge.prompt} onComplete={onCompleteChallenge} />}
       <div className="relative w-full flex-grow min-h-[50vh]">
         {showMatchAnimation && (
             <div 
@@ -288,6 +318,8 @@ const SwipeDeck: React.FC<SwipeDeckProps> = ({ users, currentUser, onSwipe, onRe
                 onSwipe={(direction) => handleSwipe(user.id, direction)}
                 compatibility={isTopCard ? compatibility : null}
                 isCompatibilityLoading={isTopCard && isCompatibilityLoading}
+                profileVibe={isTopCard ? profileVibe : null}
+                isVibeLoading={isTopCard && isVibeLoading}
               />
            );
         })}

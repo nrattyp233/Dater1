@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { User, Message, Gender } from '../types';
 import type { ColorTheme } from '../constants';
-import { CrownIcon, SparklesIcon } from '../constants';
-import { generateChatReplies } from '../services/geminiService';
+import { CrownIcon, SparklesIcon, BrainIcon } from '../constants';
+import { generateChatReplies, getWingmanTip } from '../services/geminiService';
 import { useToast } from '../contexts/ToastContext';
 
 interface ChatViewProps {
@@ -14,6 +14,7 @@ interface ChatViewProps {
     onViewProfile: (user: User) => void;
     isChatDisabled: boolean;
     activeColorTheme: ColorTheme;
+    onPremiumFeatureClick: () => void;
 }
 
 const ChatView: React.FC<ChatViewProps> = ({
@@ -24,7 +25,8 @@ const ChatView: React.FC<ChatViewProps> = ({
     onSendMessage,
     onViewProfile,
     isChatDisabled,
-    activeColorTheme
+    activeColorTheme,
+    onPremiumFeatureClick
 }) => {
     const [activeChatUserId, setActiveChatUserId] = useState<number | null>(matchedUsers.length > 0 ? matchedUsers[0].id : null);
     const [messageText, setMessageText] = useState('');
@@ -32,6 +34,11 @@ const ChatView: React.FC<ChatViewProps> = ({
     const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { showToast } = useToast();
+    
+    const [isWingmanOn, setIsWingmanOn] = useState(false);
+    const [wingmanTip, setWingmanTip] = useState<string | null>(null);
+    const [isGeneratingTip, setIsGeneratingTip] = useState(false);
+    const lastMessageCount = useRef(0);
 
     const conversations = useMemo(() => {
         return matchedUsers.map(user => {
@@ -56,6 +63,8 @@ const ChatView: React.FC<ChatViewProps> = ({
 
     useEffect(() => {
         setSuggestions([]); // Clear suggestions when switching chats
+        setWingmanTip(null);
+        lastMessageCount.current = 0;
     }, [activeChatUserId]);
 
     const activeChatUser = allUsers.find(u => u.id === activeChatUserId);
@@ -69,6 +78,28 @@ const ChatView: React.FC<ChatViewProps> = ({
             )
             .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     }, [messages, activeChatUserId, currentUser.id]);
+
+    useEffect(() => {
+        const fetchTip = async () => {
+            if (isWingmanOn && activeChatUser && activeChatMessages.length > lastMessageCount.current) {
+                lastMessageCount.current = activeChatMessages.length;
+                const lastMessage = activeChatMessages[activeChatMessages.length - 1];
+                if (lastMessage && lastMessage.senderId !== currentUser.id) {
+                    setIsGeneratingTip(true);
+                    setWingmanTip(null);
+                    try {
+                        const tip = await getWingmanTip(currentUser, activeChatUser, activeChatMessages);
+                        setWingmanTip(tip);
+                    } catch (e) {
+                        console.error("Wingman error:", e);
+                    } finally {
+                        setIsGeneratingTip(false);
+                    }
+                }
+            }
+        };
+        fetchTip();
+    }, [activeChatMessages, isWingmanOn, activeChatUser, currentUser]);
     
     const handleSendMessage = (e: React.FormEvent) => {
         e.preventDefault();
@@ -96,6 +127,15 @@ const ChatView: React.FC<ChatViewProps> = ({
         setSuggestions([]);
     };
 
+    const handleWingmanToggle = () => {
+        if (!currentUser.isPremium) {
+            onPremiumFeatureClick();
+            return;
+        }
+        setIsWingmanOn(prev => !prev);
+        setWingmanTip(null); // Clear tip on toggle
+    };
+
     return (
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 h-[calc(100vh-150px)]">
             <div className="md:col-span-1 lg:col-span-1 bg-dark-2 rounded-2xl p-4 flex flex-col border border-dark-3">
@@ -120,10 +160,31 @@ const ChatView: React.FC<ChatViewProps> = ({
             <div className="md:col-span-2 lg:col-span-3 bg-dark-2 rounded-2xl flex flex-col border border-dark-3">
                 {activeChatUser ? (
                     <>
-                        <button onClick={() => onViewProfile(activeChatUser)} className="p-4 border-b border-dark-3 flex items-center gap-3 w-full text-left hover:bg-dark-3/50 transition-colors">
-                            <img src={activeChatUser.photos[0]} alt={activeChatUser.name} className="w-10 h-10 rounded-full object-cover" />
-                            <h3 className="text-xl font-bold text-white">{activeChatUser.name}</h3>
-                        </button>
+                        <div className="p-4 border-b border-dark-3 flex items-center justify-between gap-3 w-full text-left">
+                            <button onClick={() => onViewProfile(activeChatUser)} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                                <img src={activeChatUser.photos[0]} alt={activeChatUser.name} className="w-10 h-10 rounded-full object-cover" />
+                                <h3 className="text-xl font-bold text-white">{activeChatUser.name}</h3>
+                            </button>
+                            <div className="relative flex items-center gap-2">
+                                <label htmlFor="wingman-toggle" className={`font-semibold text-sm transition-colors ${isWingmanOn ? 'text-cyan-400' : 'text-gray-400'}`}>
+                                    AI Wingman
+                                </label>
+                                <button
+                                    id="wingman-toggle"
+                                    onClick={handleWingmanToggle}
+                                    role="switch"
+                                    aria-checked={isWingmanOn}
+                                    className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${isWingmanOn ? 'bg-cyan-600' : 'bg-dark-3'}`}
+                                >
+                                    {!currentUser.isPremium && (
+                                        <div className="absolute -top-1 -right-1 bg-yellow-400 text-black p-0.5 rounded-full shadow-md z-10">
+                                           <CrownIcon className="w-3 h-3" />
+                                       </div>
+                                    )}
+                                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${isWingmanOn ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+                        </div>
                         <div className="flex-grow p-4 overflow-y-auto space-y-4">
                             {activeChatMessages.map(message => (
                                 <div key={message.id} className={`flex ${message.senderId === currentUser.id ? 'justify-end' : 'justify-start'}`}>
@@ -139,6 +200,15 @@ const ChatView: React.FC<ChatViewProps> = ({
                                 <div className="text-center text-yellow-400 mb-2 font-semibold flex items-center justify-center gap-2">
                                    <CrownIcon className="w-5 h-5" />
                                     Upgrade to Premium for unlimited messages!
+                                </div>
+                            )}
+
+                             {(isGeneratingTip || wingmanTip) && (
+                                <div className="mb-3 p-3 bg-dark-3 rounded-lg flex items-center gap-3 animate-fade-in relative">
+                                    <BrainIcon className="w-6 h-6 text-cyan-400 flex-shrink-0" />
+                                    {isGeneratingTip && <p className="text-sm italic text-gray-400">Wingman is thinking...</p>}
+                                    {wingmanTip && <p className="text-sm italic text-cyan-200">{wingmanTip}</p>}
+                                    {wingmanTip && <button onClick={() => setWingmanTip(null)} className="absolute top-1 right-1 text-gray-500 hover:text-white">&times;</button>}
                                 </div>
                             )}
 

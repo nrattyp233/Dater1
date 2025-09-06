@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, User, DatePost, Message, Badge } from './types';
-import { CURRENT_USER_ID, colorThemes, ColorTheme, BADGES, DATE_SPARK_PROMPTS, HeartIcon, CalendarIcon, PlusIcon, ChatIcon } from './constants';
+import { CURRENT_USER_ID, colorThemes, ColorTheme, BADGES, WEEKLY_CHALLENGE_PROMPTS, HeartIcon, CalendarIcon, PlusIcon, ChatIcon } from './constants';
 import * as api from './services/api';
 import { categorizeDatePost } from './services/geminiService';
 import { useToast, ToastProvider } from './contexts/ToastContext';
@@ -122,7 +122,7 @@ const MainApp: React.FC = () => {
 
     // New feature states
     const [showOnboarding, setShowOnboarding] = useState(false);
-    const [dailySpark, setDailySpark] = useState<{ prompt: string; isCompleted: boolean } | null>(null);
+    const [weeklyChallenge, setWeeklyChallenge] = useState<{ theme: string, prompt: string; isCompleted: boolean } | null>(null);
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -151,12 +151,17 @@ const MainApp: React.FC = () => {
             if (!hasOnboarded) {
                 setShowOnboarding(true);
             }
-            // Daily Spark logic
-            const today = new Date().toDateString();
-            const lastCompletion = localStorage.getItem('dailySparkCompletionDate');
-            const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
-            const prompt = DATE_SPARK_PROMPTS[dayOfYear % DATE_SPARK_PROMPTS.length];
-            setDailySpark({ prompt, isCompleted: today === lastCompletion });
+            // Weekly Challenge logic
+            const today = new Date();
+            const startOfYear = new Date(today.getFullYear(), 0, 1);
+            const dayOfYear = Math.floor((today.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24));
+            const weekOfYear = Math.ceil(dayOfYear / 7);
+            
+            const lastCompletionWeek = localStorage.getItem('weeklyChallengeCompletionWeek');
+            const currentWeekString = `${today.getFullYear()}-${weekOfYear}`;
+
+            const { theme, prompt } = WEEKLY_CHALLENGE_PROMPTS[weekOfYear % WEEKLY_CHALLENGE_PROMPTS.length];
+            setWeeklyChallenge({ theme, prompt, isCompleted: currentWeekString === lastCompletionWeek });
         }
     }, [showToast, isAuthenticated]);
 
@@ -306,11 +311,15 @@ const MainApp: React.FC = () => {
         else localStorage.removeItem('appBackground');
     };
     
-    const handleCompleteSpark = () => {
+    const handleCompleteChallenge = () => {
         setCurrentView(View.Create);
         showToast('Let\'s create that date!', 'info');
-        localStorage.setItem('dailySparkCompletionDate', new Date().toDateString());
-        if (dailySpark) setDailySpark({ ...dailySpark, isCompleted: true });
+        const today = new Date();
+        const startOfYear = new Date(today.getFullYear(), 0, 1);
+        const dayOfYear = Math.floor((today.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24));
+        const weekOfYear = Math.ceil(dayOfYear / 7);
+        localStorage.setItem('weeklyChallengeCompletionWeek', `${today.getFullYear()}-${weekOfYear}`);
+        if (weeklyChallenge) setWeeklyChallenge({ ...weeklyChallenge, isCompleted: true });
     };
 
     // Modal Handlers
@@ -335,7 +344,7 @@ const MainApp: React.FC = () => {
 
         switch (currentView) {
             case View.Swipe:
-                return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} dailySpark={dailySpark} onCompleteSpark={handleCompleteSpark} />;
+                return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} weeklyChallenge={weeklyChallenge} onCompleteChallenge={handleCompleteChallenge} />;
             case View.Dates:
                 return <DateMarketplace datePosts={datePosts} allUsers={users} onToggleInterest={handleToggleInterest} currentUserId={CURRENT_USER_ID} gender={currentUser?.gender} isLoading={isLoading} onViewProfile={handleViewProfile} activeColorTheme={activeColorTheme} />;
             case View.Create:
@@ -343,13 +352,13 @@ const MainApp: React.FC = () => {
             case View.Matches:
                 return <MatchesView matchedUsers={matchedUsers} currentUser={currentUser!} onViewProfile={handleViewProfile} onPlanDate={handlePlanDate} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
              case View.Chat:
-                return <ChatView currentUser={currentUser!} matchedUsers={matchedUsers} allUsers={users} messages={messages} onSendMessage={handleSendMessage} onViewProfile={handleViewProfile} isChatDisabled={!currentUser?.isPremium && sentMessageCount >= FREE_MESSAGE_LIMIT} activeColorTheme={activeColorTheme} />;
+                return <ChatView currentUser={currentUser!} matchedUsers={matchedUsers} allUsers={users} messages={messages} onSendMessage={handleSendMessage} onViewProfile={handleViewProfile} isChatDisabled={!currentUser?.isPremium && sentMessageCount >= FREE_MESSAGE_LIMIT} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
             case View.MyDates:
                 return <MyDatesManager myDates={myDates} allUsers={users} onChooseApplicant={handleChooseApplicant} onDeleteDate={handleDeleteDate} gender={currentUser?.gender} onViewProfile={handleViewProfile} activeColorTheme={activeColorTheme} />;
             case View.Profile:
                 return <ProfileSettings currentUser={currentUser!} onSave={handleUpdateProfile} onGetFeedback={handleGetProfileFeedback} activeColorTheme={activeColorTheme} onSignOut={handleSignOut} onPremiumFeatureClick={handleOpenMonetizationModal} onSetAppBackground={handleSetAppBackground} />;
             default:
-                return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} dailySpark={dailySpark} onCompleteSpark={handleCompleteSpark}/>;
+                return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} weeklyChallenge={weeklyChallenge} onCompleteChallenge={handleCompleteChallenge}/>;
         }
     };
 
