@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+echo "Open this URL: $1"
+exit 0

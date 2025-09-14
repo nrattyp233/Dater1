@@ -18,3 +18,23 @@ View your app in AI Studio: https://ai.studio/apps/drive/1gH2LdLDqrcGIgEOUAXHZm_
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Production Deploy (Vercel)
+
+This app is configured to run production-only. Gemini calls are proxied via a Vercel Serverless Function to protect your API key.
+
+1) Set environment variables in Vercel Project Settings → Environment Variables:
+- `GEMINI_API_KEY` → your Google AI Studio key
+
+2) Deploy
+- Push to GitHub and import the repo in Vercel
+- Vercel will serve static assets from `dist/` and the API from `api/`
+
+3) Local production preview (optional)
+```bash
+npm ci
+VITE_GEMINI_API_KEY=YOUR_KEY npm run build
+npx vite preview --host 0.0.0.0 --port 4173
+```
+
+Note: Client uses `fetch('/api/ai')` for AI endpoints; no API key is exposed in the browser.

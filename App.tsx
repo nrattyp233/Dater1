@@ -236,16 +236,15 @@ const MainApp: React.FC = () => {
         setLastSwipedUserId(null);
     };
 
-    const handleToggleInterest = (dateId: number) => {
-        setDatePosts(prevPosts => prevPosts.map(post => {
-            if (post.id === dateId) {
-                const isInterested = post.applicants.includes(CURRENT_USER_ID);
-                const applicantMessage = isInterested ? "You are no longer interested in this date." : "You've expressed interest in this date!";
-                showToast(applicantMessage, isInterested ? 'info' : 'success');
-                return isInterested ? { ...post, applicants: post.applicants.filter(id => id !== CURRENT_USER_ID) } : { ...post, applicants: [...post.applicants, CURRENT_USER_ID] };
-            }
-            return post;
-        }));
+    const handleToggleInterest = async (dateId: number) => {
+        try {
+            const updated = await api.toggleInterest(dateId, CURRENT_USER_ID);
+            setDatePosts(prev => prev.map(p => (p.id === updated.id ? updated : p)));
+            const isInterested = updated.applicants.includes(CURRENT_USER_ID);
+            showToast(isInterested ? "You've expressed interest in this date!" : "You are no longer interested in this date.", isInterested ? 'success' : 'info');
+        } catch (error: any) {
+            showToast(error.message || 'Failed to update interest.', 'error');
+        }
     };
 
     const handleCreateDate = async (newDateData: Omit<DatePost, 'id' | 'createdBy' | 'applicants' | 'chosenApplicantId' | 'categories'>) => {
@@ -254,7 +253,7 @@ const MainApp: React.FC = () => {
         showToast('AI is categorizing your date...', 'info');
         try {
             const categories = await categorizeDatePost(newDateData.title, newDateData.description);
-            const newDate = api.createDate({ ...newDateData, categories }, CURRENT_USER_ID);
+            const newDate = await api.createDate({ ...newDateData, categories }, CURRENT_USER_ID);
 
             setDatePosts(prev => [newDate, ...prev]);
             showToast('Your date has been posted!', 'success');
@@ -271,20 +270,35 @@ const MainApp: React.FC = () => {
         }
     };
 
-    const handleDeleteDate = (dateId: number) => {
-        setDatePosts(prevPosts => prevPosts.filter(post => post.id !== dateId));
-        showToast('Date post has been deleted.', 'info');
+    const handleDeleteDate = async (dateId: number) => {
+        try {
+            await api.deleteDate(dateId);
+            setDatePosts(prevPosts => prevPosts.filter(post => post.id !== dateId));
+            showToast('Date post has been deleted.', 'info');
+        } catch (error: any) {
+            showToast(error.message || 'Failed to delete date.', 'error');
+        }
     };
 
-    const handleChooseApplicant = (dateId: number, applicantId: number) => {
-        setDatePosts(prevPosts => prevPosts.map(post => post.id === dateId ? { ...post, chosenApplicantId: applicantId } : post));
-        const applicant = users.find(u => u.id === applicantId);
-        showToast(`You've chosen ${applicant?.name} for your date!`, 'success');
+    const handleChooseApplicant = async (dateId: number, applicantId: number) => {
+        try {
+            const updated = await api.chooseApplicant(dateId, applicantId);
+            setDatePosts(prev => prev.map(p => (p.id === updated.id ? updated : p)));
+            const applicant = users.find(u => u.id === applicantId);
+            showToast(`You've chosen ${applicant?.name} for your date!`, 'success');
+        } catch (error: any) {
+            showToast(error.message || 'Failed to choose applicant.', 'error');
+        }
     };
 
-    const handleUpdateProfile = (updatedUser: User) => {
-        setUsers(prevUsers => prevUsers.map(u => u.id === updatedUser.id ? updatedUser : u));
-        showToast('Profile saved successfully!', 'success');
+    const handleUpdateProfile = async (updatedUser: User) => {
+        try {
+            await api.updateUser(updatedUser);
+            setUsers(prevUsers => prevUsers.map(u => (u.id === updatedUser.id ? updatedUser : u)));
+            showToast('Profile saved successfully!', 'success');
+        } catch (error: any) {
+            showToast(error.message || 'Failed to save profile.', 'error');
+        }
     };
 
     const handleSendMessage = async (receiverId: number, text: string) => {
