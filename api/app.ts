@@ -85,6 +85,13 @@ async function seedIfEmpty() {
 
 export default async function handler(req: Req, res: Res) {
   try {
+    res.setHeader('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
     if (req.method === 'GET') {
       res.status(200).json({ ok: true, service: 'data-api' });
       return;
