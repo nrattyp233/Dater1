@@ -85,6 +85,10 @@ async function seedIfEmpty() {
 
 export default async function handler(req: Req, res: Res) {
   try {
+    if (req.method === 'GET') {
+      res.status(200).json({ ok: true, service: 'data-api' });
+      return;
+    }
     if (req.method !== 'POST') {
       res.status(405).json({ error: 'Method Not Allowed' });
       return;
