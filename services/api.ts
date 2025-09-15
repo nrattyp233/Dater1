@@ -1,6 +1,7 @@
 import { User, DatePost, Message } from '../types';
 
-const DATA_API = '/api/app';
+const rawDataApi = (import.meta as any)?.env?.VITE_DATA_API as string | undefined;
+const DATA_API = (rawDataApi && rawDataApi.trim()) || '/api/app';
 
 async function call<T>(action: string, payload?: any): Promise<T> {
     const res = await fetch(DATA_API, {

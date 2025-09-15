@@ -1,6 +1,7 @@
 import { User, DateIdea, LocationSuggestion, Message, DateCategory } from '../types';
 
-const API_BASE = '/api/ai';
+const aiBase = (import.meta as any)?.env?.VITE_AI_API as string | undefined;
+const API_BASE = (aiBase && aiBase.trim()) || '/api/ai';
 
 async function post<T>(action: string, payload: any): Promise<T> {
     const res = await fetch(API_BASE, {
