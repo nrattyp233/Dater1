@@ -2,7 +2,7 @@ import { User, DatePost, Message } from '../types';
 import { premiumVerificationService } from './premiumVerificationService';
 
 const rawDataApi = (import.meta as any)?.env?.VITE_DATA_API as string | undefined;
-const DATA_API = (rawDataApi && rawDataApi.trim()) || '/api/app';
+const DATA_API = (rawDataApi && rawDataApi.trim()) || '/.netlify/functions/app';
 
 async function call<T>(action: string, payload?: any): Promise<T> {
     const res = await fetch(DATA_API, {

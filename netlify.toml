@@ -5,6 +5,23 @@
 [functions]
   directory = "netlify/functions"
 
+# DISABLE NEON EXTENSIONS - USE SUPABASE ONLY
+[dev]
+  framework = "#vite"
+
+# NO NEON - SUPABASE ONLY
+[context.production.environment]
+  NODE_VERSION = "20"
+  DATABASE_PROVIDER = "supabase"
+
+[context.deploy-preview.environment]
+  NODE_VERSION = "20"
+  DATABASE_PROVIDER = "supabase"
+
+[context.branch-deploy.environment]
+  NODE_VERSION = "20"
+  DATABASE_PROVIDER = "supabase"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
@@ -14,12 +31,3 @@
   from = "/*"
   to = "/index.html"
   status = 200
-
-[context.production.environment]
-  NODE_VERSION = "20"
-
-[context.deploy-preview.environment]
-  NODE_VERSION = "20"
-
-[context.branch-deploy.environment]
-  NODE_VERSION = "20"
