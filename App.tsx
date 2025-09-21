@@ -131,23 +131,13 @@ const MainApp: React.FC = () => {
                 const savedBackground = localStorage.getItem('appBackground');
                 if (savedBackground) setAppBackground(savedBackground);
 
-                // Try to fetch data, but handle errors gracefully
-                try {
-                    const [fetchedUsers, fetchedDatePosts, fetchedMessages] = await Promise.all([
-                        api.getUsers(), api.getDatePosts(), api.getMessages()
-                    ]);
-                    setUsers(fetchedUsers);
-                    setDatePosts(fetchedDatePosts);
-                    setMessages(fetchedMessages);
-                } catch (apiError) {
-                    console.warn('API not available, using mock data for local development:', apiError);
-                    // Load mock data when API is not available (local development)
-                    const mockData = await import('./services/mockData');
-                    setUsers(mockData.mockUsers);
-                    setDatePosts(mockData.mockDatePosts);
-                    setMessages(mockData.mockMessages);
-                    showToast('Running in offline mode with demo data', 'info');
-                }
+                // Fetch data from API - production ready
+                const [fetchedUsers, fetchedDatePosts, fetchedMessages] = await Promise.all([
+                    api.getUsers(), api.getDatePosts(), api.getMessages()
+                ]);
+                setUsers(fetchedUsers);
+                setDatePosts(fetchedDatePosts);
+                setMessages(fetchedMessages);
             } catch (error) {
                 console.error('Failed to load app data:', error);
                 showToast('Failed to load app data. Please refresh.', 'error');
