@@ -130,7 +130,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     });
 
     switch (action) {
-      case 'health': {
+  case 'health': {
         // Report basic connectivity and counts (anon client)
         const results: any = {
           ok: true,
@@ -149,6 +149,22 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
           if (uErr) results.usersError = uErr.message;
         } catch (e: any) {
           results.usersError = e?.message || 'unknown';
+        }
+        // Outbound reachability tests
+        try {
+          const pong = await fetch('https://api.ipify.org?format=json', { method: 'GET' });
+          results.egress = pong.ok;
+        } catch (e: any) {
+          results.egress = false;
+          results.egressError = e?.message || 'unknown';
+        }
+        try {
+          const supaPing = await fetch(`${process.env.SUPABASE_URL}/rest/v1/?apikey=${process.env.SUPABASE_ANON_KEY}`, { method: 'GET' });
+          results.supabaseReachable = supaPing.ok || supaPing.status === 404;
+          results.supabaseStatus = supaPing.status;
+        } catch (e: any) {
+          results.supabaseReachable = false;
+          results.supabaseReachError = e?.message || 'unknown';
         }
         try {
           const { count: postsCount, error: pErr } = await supabase
