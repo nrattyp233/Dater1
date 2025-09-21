@@ -1,5 +1,6 @@
 import { User, DatePost, Message } from '../types';
 import { premiumVerificationService } from './premiumVerificationService';
+import { supabase } from './supabaseClient';
 
 const rawDataApi = (import.meta as any)?.env?.VITE_DATA_API as string | undefined;
 const DATA_API = (rawDataApi && rawDataApi.trim()) || '/.netlify/functions/app';
@@ -17,9 +18,97 @@ async function call<T>(action: string, payload?: any): Promise<T> {
     return res.json();
 }
 
-export const getUsers = (): Promise<User[]> => call<User[]>('getUsers');
-export const getDatePosts = (): Promise<DatePost[]> => call<DatePost[]>('getDatePosts');
-export const getMessages = (): Promise<Message[]> => call<Message[]>('getMessages');
+// Fallback read helpers via Supabase (browser) if serverless cannot reach DB
+async function tryDirectUsers(): Promise<User[] | null> {
+    if (!supabase) return null;
+    try {
+        const { data, error } = await supabase.from('users').select('*').order('id', { ascending: true });
+        if (error) return null;
+        return (data || []).map((row: any) => ({
+            id: row.id,
+            name: row.name,
+            age: row.age,
+            bio: row.bio,
+            photos: row.photos ?? [],
+            interests: row.interests ?? [],
+            gender: row.gender,
+            isPremium: row.is_premium,
+            preferences: row.preferences ?? null,
+            earnedBadgeIds: row.earned_badge_ids ?? [],
+        }));
+    } catch {
+        return null;
+    }
+}
+
+async function tryDirectDatePosts(): Promise<DatePost[] | null> {
+    if (!supabase) return null;
+    try {
+        const { data, error } = await supabase.from('date_posts').select('*').order('id', { ascending: false });
+        if (error) return null;
+        return (data || []).map((row: any) => ({
+            id: Number(row.id),
+            title: row.title,
+            description: row.description,
+            createdBy: row.created_by,
+            location: row.location,
+            dateTime: row.date_time,
+            applicants: row.applicants ?? [],
+            chosenApplicantId: row.chosen_applicant_id,
+            categories: row.categories ?? [],
+        }));
+    } catch {
+        return null;
+    }
+}
+
+async function tryDirectMessages(): Promise<Message[] | null> {
+    if (!supabase) return null;
+    try {
+        const { data, error } = await supabase.from('messages').select('*').order('id', { ascending: true });
+        if (error) return null;
+        return (data || []).map((row: any) => ({
+            id: Number(row.id),
+            senderId: row.sender_id,
+            receiverId: row.receiver_id,
+            text: row.text,
+            timestamp: row.timestamp,
+            read: row.read,
+        }));
+    } catch {
+        return null;
+    }
+}
+
+export const getUsers = async (): Promise<User[]> => {
+    try {
+        return await call<User[]>('getUsers');
+    } catch {
+        const fallback = await tryDirectUsers();
+        if (fallback) return fallback;
+        throw new Error('Failed to load users');
+    }
+};
+
+export const getDatePosts = async (): Promise<DatePost[]> => {
+    try {
+        return await call<DatePost[]>('getDatePosts');
+    } catch {
+        const fallback = await tryDirectDatePosts();
+        if (fallback) return fallback;
+        throw new Error('Failed to load date posts');
+    }
+};
+
+export const getMessages = async (): Promise<Message[]> => {
+    try {
+        return await call<Message[]>('getMessages');
+    } catch {
+        const fallback = await tryDirectMessages();
+        if (fallback) return fallback;
+        throw new Error('Failed to load messages');
+    }
+};
 
 export const createDate = (
     newDateData: Omit<DatePost, 'id' | 'createdBy' | 'applicants' | 'chosenApplicantId'>,
