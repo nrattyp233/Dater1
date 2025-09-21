@@ -19,22 +19,67 @@ View your app in AI Studio: https://ai.studio/apps/drive/1gH2LdLDqrcGIgEOUAXHZm_
 3. Run the app:
    `npm run dev`
 
-## Production Deploy (Vercel)
+## Production Deploy (Netlify)
 
-This app is configured to run production-only. Gemini calls are proxied via a Vercel Serverless Function to protect your API key.
+This app is configured to run on Netlify with Supabase as the database. Gemini calls are proxied via Netlify Functions to protect your API key.
 
-1) Set environment variables in Vercel Project Settings → Environment Variables:
-- `GEMINI_API_KEY` → your Google AI Studio key
+1) **Set up Supabase database:**
+   - Go to https://supabase.com/ and create a new project
+   - In the SQL Editor, run the following to create your tables:
+   ```sql
+   -- Create users table
+   CREATE TABLE users (
+     id INTEGER PRIMARY KEY,
+     name TEXT,
+     age INTEGER,
+     bio TEXT,
+     photos JSONB,
+     interests JSONB,
+     gender TEXT,
+     is_premium BOOLEAN,
+     preferences JSONB,
+     earned_badge_ids JSONB
+   );
 
-2) Deploy
-- Push to GitHub and import the repo in Vercel
-- Vercel will serve static assets from `dist/` and the API from `api/`
+   -- Create date_posts table
+   CREATE TABLE date_posts (
+     id BIGSERIAL PRIMARY KEY,
+     title TEXT,
+     description TEXT,
+     created_by INTEGER REFERENCES users(id),
+     location TEXT,
+     date_time TEXT,
+     applicants JSONB,
+     chosen_applicant_id INTEGER,
+     categories JSONB
+   );
 
-3) Local production preview (optional)
-```bash
-npm ci
-VITE_GEMINI_API_KEY=YOUR_KEY npm run build
-npx vite preview --host 0.0.0.0 --port 4173
-```
+   -- Create messages table
+   CREATE TABLE messages (
+     id BIGSERIAL PRIMARY KEY,
+     sender_id INTEGER REFERENCES users(id),
+     receiver_id INTEGER REFERENCES users(id),
+     text TEXT,
+     timestamp TEXT,
+     read BOOLEAN
+   );
+   ```
+
+2) **Set environment variables in Netlify Site Settings → Environment Variables:**
+   - `SUPABASE_URL` → your Supabase project URL (found in Settings → API)
+   - `SUPABASE_ANON_KEY` → your Supabase anon/public key (found in Settings → API)
+   - `GEMINI_API_KEY` → your Google AI Studio key
+
+3) **Deploy:**
+   - Push to GitHub and connect your repo in Netlify
+   - Netlify will serve static assets from `dist/` and the API from `netlify/functions/`
+   - Make sure to set the build command to `npm run build` and publish directory to `dist`
+
+4) **Local development with Netlify CLI:**
+   ```bash
+   npm install
+   npm install -g netlify-cli
+   netlify dev
+   ```
 
 Note: Client uses `fetch('/api/ai')` for AI endpoints; no API key is exposed in the browser.

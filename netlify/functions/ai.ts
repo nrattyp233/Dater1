@@ -1,31 +1,48 @@
+import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { GoogleGenAI, Type } from '@google/genai';
 
-export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') {
-    res.status(204).end();
-    return;
+export const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
+  const headers = {
+    'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
+    'Access-Control-Allow-Methods': 'POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 204,
+      headers,
+      body: '',
+    };
   }
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method Not Allowed' });
-    return;
+
+  if (event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method Not Allowed' }),
+    };
   }
 
   const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
-    res.status(500).json({ error: 'Gemini API key not configured on server.' });
-    return;
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Gemini API key not configured on server.' }),
+    };
   }
 
   const ai = new GoogleGenAI({ apiKey });
 
   try {
-    const { action, payload } = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const { action, payload } = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
     if (!action) {
-      res.status(400).json({ error: 'Missing action' });
-      return;
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Missing action' }),
+      };
     }
 
     switch (action) {
@@ -36,8 +53,11 @@ export default async function handler(req: any, res: any) {
           contents: `You are a creative date planner. Take the following simple date idea and turn it into an exciting and descriptive date post of about 50-70 words. Make it sound appealing, romantic, and fun. Do not use hashtags. Date Idea: "${idea}"`,
           config: { temperature: 0.8, topP: 0.9 },
         });
-        res.json({ text: response.text.trim() });
-        return;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ text: response.text.trim() }),
+        };
       }
       case 'generateFullDateIdea': {
         const { user } = payload;
@@ -59,8 +79,11 @@ export default async function handler(req: any, res: any) {
             },
           },
         });
-        res.json(JSON.parse(response.text.trim()));
-        return;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(JSON.parse(response.text.trim())),
+        };
       }
       case 'generateIcebreakers': {
         const { user } = payload;
@@ -79,8 +102,11 @@ export default async function handler(req: any, res: any) {
             },
           },
         });
-        res.json(JSON.parse(response.text.trim()))
-        return;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(JSON.parse(response.text.trim())),
+        };
       }
       case 'getCompatibilityScore': {
         const { currentUser, otherUser } = payload;
@@ -98,8 +124,11 @@ export default async function handler(req: any, res: any) {
             },
           },
         });
-        res.json(JSON.parse(response.text.trim()));
-        return;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(JSON.parse(response.text.trim())),
+        };
       }
       case 'getProfileFeedback': {
         const { user } = payload;
@@ -117,8 +146,11 @@ export default async function handler(req: any, res: any) {
             },
           },
         });
-        res.json(JSON.parse(response.text.trim()));
-        return;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(JSON.parse(response.text.trim())),
+        };
       }
       case 'generateDateIdeas': {
         const { user1, user2 } = payload;
@@ -149,8 +181,11 @@ export default async function handler(req: any, res: any) {
             },
           },
         });
-        res.json(JSON.parse(response.text.trim()));
-        return;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(JSON.parse(response.text.trim())),
+        };
       }
       case 'suggestLocations': {
         const { title, description } = payload;
@@ -177,8 +212,11 @@ export default async function handler(req: any, res: any) {
             },
           },
         });
-        res.json(JSON.parse(response.text.trim()));
-        return;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(JSON.parse(response.text.trim())),
+        };
       }
       case 'generateChatReplies': {
         const { currentUser, otherUser, messages } = payload;
@@ -197,8 +235,11 @@ export default async function handler(req: any, res: any) {
             },
           },
         });
-        res.json(JSON.parse(response.text.trim()));
-        return;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(JSON.parse(response.text.trim())),
+        };
       }
       case 'optimizePhotoOrder': {
         const { photos } = payload as { photos: string[] };
@@ -216,8 +257,11 @@ export default async function handler(req: any, res: any) {
             responseSchema: { type: Type.OBJECT, properties: { newOrder: { type: Type.ARRAY, items: { type: Type.NUMBER } } }, required: ['newOrder'] },
           },
         });
-        res.json(JSON.parse(response.text.trim()));
-        return;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(JSON.parse(response.text.trim())),
+        };
       }
       case 'generateAppBackground': {
         const { prompt } = payload;
@@ -228,11 +272,17 @@ export default async function handler(req: any, res: any) {
         });
         const base64ImageBytes: string | undefined = response.generatedImages?.[0]?.image?.imageBytes;
         if (!base64ImageBytes) {
-          res.status(502).json({ error: 'No image returned from model' });
-          return;
+          return {
+            statusCode: 502,
+            headers,
+            body: JSON.stringify({ error: 'No image returned from model' }),
+          };
         }
-        res.json({ dataUrl: `data:image/png;base64,${base64ImageBytes}` });
-        return;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ dataUrl: `data:image/png;base64,${base64ImageBytes}` }),
+        };
       }
       case 'categorizeDatePost': {
         const { title, description } = payload;
@@ -249,30 +299,46 @@ export default async function handler(req: any, res: any) {
         });
         const result = JSON.parse(response.text.trim());
         result.categories = (result.categories || []).filter((c: string) => available.includes(c));
-        res.json(result);
-        return;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(result),
+        };
       }
       case 'getProfileVibe': {
         const { user } = payload;
         const prompt = `Based on this user's profile, generate a short, snappy 'vibe' (10-15 words) that summarizes their personality. No hashtags.\nBio: "${user.bio}"\nInterests: ${user.interests.join(', ')}`;
         const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { temperature: 0.8, topP: 0.9 } });
-        res.json({ text: response.text.trim().replace(/^"|"$/g, '') });
-        return;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ text: response.text.trim().replace(/^"|"$/g, '') }),
+        };
       }
       case 'getWingmanTip': {
         const { currentUser, otherUser, messages } = payload;
         const conversation = messages.slice(-8).map((m: any) => `${m.senderId === currentUser.id ? 'Me' : otherUser.name}: ${m.text}`).join('\n');
         const prompt = `You are an AI wingman. Provide one short, actionable tip (<15 words) for ${currentUser.name} based on this chat with ${otherUser.name}.\n\n${conversation}`;
         const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { temperature: 0.9, topP: 0.95, thinkingConfig: { thinkingBudget: 0 } as any } });
-        res.json({ text: response.text.trim() });
-        return;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ text: response.text.trim() }),
+        };
       }
       default:
-        res.status(400).json({ error: `Unknown action: ${action}` });
-        return;
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: `Unknown action: ${action}` }),
+        };
     }
   } catch (err: any) {
     console.error('AI API error:', err);
-    res.status(500).json({ error: err?.message || 'Server error' });
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: err?.message || 'Server error' }),
+    };
   }
-}
+};
