@@ -3,7 +3,7 @@
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   age INTEGER,
   bio TEXT,
