@@ -124,28 +124,29 @@ const MainApp: React.FC = () => {
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [weeklyChallenge, setWeeklyChallenge] = useState<{ theme: string, prompt: string; isCompleted: boolean } | null>(null);
 
+    // Data loader (reusable for initial load and retries)
+    const fetchInitialData = async () => {
+        try {
+            setIsLoading(true);
+            const savedBackground = localStorage.getItem('appBackground');
+            if (savedBackground) setAppBackground(savedBackground);
+
+            // Fetch data from API - production ready
+            const [fetchedUsers, fetchedDatePosts, fetchedMessages] = await Promise.all([
+                api.getUsers(), api.getDatePosts(), api.getMessages()
+            ]);
+            setUsers(fetchedUsers);
+            setDatePosts(fetchedDatePosts);
+            setMessages(fetchedMessages);
+        } catch (error) {
+            console.error('Failed to load app data:', error);
+            showToast('Failed to load app data. Please try again.', 'error');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchInitialData = async () => {
-            try {
-                setIsLoading(true);
-                const savedBackground = localStorage.getItem('appBackground');
-                if (savedBackground) setAppBackground(savedBackground);
-
-                // Fetch data from API - production ready
-                const [fetchedUsers, fetchedDatePosts, fetchedMessages] = await Promise.all([
-                    api.getUsers(), api.getDatePosts(), api.getMessages()
-                ]);
-                setUsers(fetchedUsers);
-                setDatePosts(fetchedDatePosts);
-                setMessages(fetchedMessages);
-            } catch (error) {
-                console.error('Failed to load app data:', error);
-                showToast('Failed to load app data. Please refresh.', 'error');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         if (isAuthenticated) {
             fetchInitialData();
              // Onboarding check
@@ -176,7 +177,13 @@ const MainApp: React.FC = () => {
     }, [currentView]);
 
 
-    const currentUser = useMemo(() => users.find(u => u.id === CURRENT_USER_ID), [users]);
+    // Pick the requested user; if missing, fall back to the first available user
+    const currentUser = useMemo(() => {
+        const exact = users.find(u => u.id === CURRENT_USER_ID);
+        return exact || (users.length > 0 ? users[0] : undefined);
+    }, [users]);
+
+    const currentUserId = currentUser?.id ?? CURRENT_USER_ID;
 
     const matchedUsers = useMemo(() => {
         return users.filter(user => matches.includes(user.id));
@@ -192,7 +199,7 @@ const MainApp: React.FC = () => {
     const usersForSwiping = useMemo(() => {
         if (!currentUser) return [];
         return users.filter(u => {
-            const isNotCurrentUser = u.id !== CURRENT_USER_ID;
+            const isNotCurrentUser = u.id !== currentUserId;
             const isNotMatched = !matches.includes(u.id);
             const isNotSwipedLeft = !swipedLeftIds.includes(u.id);
             if (!currentUser.preferences) return isNotCurrentUser && isNotMatched && isNotSwipedLeft;
@@ -202,19 +209,19 @@ const MainApp: React.FC = () => {
             
             return isNotCurrentUser && isNotMatched && isNotSwipedLeft && matchesGenderPref && matchesAgePref;
         });
-    }, [users, matches, swipedLeftIds, currentUser]);
+    }, [users, matches, swipedLeftIds, currentUser, currentUserId]);
     
-    const myDates = datePosts.filter(d => d.createdBy === CURRENT_USER_ID);
+    const myDates = datePosts.filter(d => d.createdBy === currentUserId);
     
     const earnBadge = (badgeId: Badge['id']) => {
-        const user = users.find(u => u.id === CURRENT_USER_ID);
+        const user = users.find(u => u.id === currentUserId);
         if (!user || user.earnedBadgeIds?.includes(badgeId)) {
             return;
         }
 
         showToast(`Badge Unlocked: ${BADGES[badgeId].name}!`, 'success');
         setUsers(prevUsers => prevUsers.map(u => 
-            u.id === CURRENT_USER_ID ? { ...u, earnedBadgeIds: [...(u.earnedBadgeIds || []), badgeId] } : u
+            u.id === currentUserId ? { ...u, earnedBadgeIds: [...(u.earnedBadgeIds || []), badgeId] } : u
         ));
     };
 
@@ -240,9 +247,9 @@ const MainApp: React.FC = () => {
 
     const handleToggleInterest = async (dateId: number) => {
         try {
-            const updated = await api.toggleInterest(dateId, CURRENT_USER_ID);
+            const updated = await api.toggleInterest(dateId, currentUserId);
             setDatePosts(prev => prev.map(p => (p.id === updated.id ? updated : p)));
-            const isInterested = updated.applicants.includes(CURRENT_USER_ID);
+            const isInterested = updated.applicants.includes(currentUserId);
             showToast(isInterested ? "You've expressed interest in this date!" : "You are no longer interested in this date.", isInterested ? 'success' : 'info');
         } catch (error: any) {
             showToast(error.message || 'Failed to update interest.', 'error');
@@ -255,7 +262,7 @@ const MainApp: React.FC = () => {
         showToast('AI is categorizing your date...', 'info');
         try {
             const categories = await categorizeDatePost(newDateData.title, newDateData.description);
-            const newDate = await api.createDate({ ...newDateData, categories }, CURRENT_USER_ID);
+            const newDate = await api.createDate({ ...newDateData, categories }, currentUserId);
 
             setDatePosts(prev => [newDate, ...prev]);
             showToast('Your date has been posted!', 'success');
@@ -314,7 +321,7 @@ const MainApp: React.FC = () => {
         if (messages.filter(m => m.senderId === currentUser.id).length === 4) earnBadge('starter');
         
         try {
-            const newMessage = await api.sendMessage(CURRENT_USER_ID, receiverId, text);
+            const newMessage = await api.sendMessage(currentUserId, receiverId, text);
             setMessages(prev => [...prev, newMessage]);
         } catch (error) {
             showToast('Failed to send message.', 'error');
@@ -354,7 +361,7 @@ const MainApp: React.FC = () => {
             // Verify payment was actually completed before granting premium
             try {
                 const { verifyPremiumStatus } = await import('./services/api');
-                const isPremiumVerified = await verifyPremiumStatus(CURRENT_USER_ID);
+                const isPremiumVerified = await verifyPremiumStatus(currentUserId);
                 
                 if (isPremiumVerified) {
                     handleUpdateProfile({ ...currentUser, isPremium: true }); 
@@ -374,13 +381,25 @@ const MainApp: React.FC = () => {
 
     const renderView = () => {
         if (!currentUser && isLoading) return <div className="text-center">Loading Create-A-Date...</div>;
-        if (!currentUser && !isLoading) return <div className="text-center text-red-500">Error: Could not load current user data.</div>;
+        if (!currentUser && !isLoading) {
+            return (
+                <div className="text-center text-gray-300">
+                    <p className="mb-4">No users are available yet. Please try again in a moment.</p>
+                    <button
+                        onClick={fetchInitialData}
+                        className="px-4 py-2 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-brand-pink to-brand-purple text-white hover:opacity-90"
+                    >
+                        Retry
+                    </button>
+                </div>
+            );
+        }
 
         switch (currentView) {
             case View.Swipe:
                 return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} weeklyChallenge={weeklyChallenge} onCompleteChallenge={handleCompleteChallenge} />;
             case View.Dates:
-                return <DateMarketplace datePosts={datePosts} allUsers={users} onToggleInterest={handleToggleInterest} currentUserId={CURRENT_USER_ID} gender={currentUser?.gender} isLoading={isLoading} onViewProfile={handleViewProfile} activeColorTheme={activeColorTheme} />;
+                return <DateMarketplace datePosts={datePosts} allUsers={users} onToggleInterest={handleToggleInterest} currentUserId={currentUserId} gender={currentUser?.gender} isLoading={isLoading} onViewProfile={handleViewProfile} activeColorTheme={activeColorTheme} />;
             case View.Create:
                 return <CreateDateForm onCreateDate={handleCreateDate} currentUser={currentUser!} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
             case View.Matches:
@@ -414,7 +433,7 @@ const MainApp: React.FC = () => {
             {isIcebreakerModalOpen && <IcebreakerModal user={selectedUserForModal} onClose={handleCloseIcebreakers} gender={currentUser?.gender} onSendIcebreaker={(message) => { if(selectedUserForModal) { handleSendMessage(selectedUserForModal.id, message); handleCloseIcebreakers(); setCurrentView(View.Chat); } }} />}
             {isFeedbackModalOpen && <ProfileFeedbackModal user={currentUser!} onClose={handleCloseProfileFeedback} gender={currentUser?.gender}/>}
             {isDatePlannerModalOpen && <DatePlannerModal users={usersForDatePlanning} onClose={handleCloseDatePlanner} gender={currentUser?.gender}/>}
-            {isMonetizationModalOpen && <MonetizationModal onClose={handleCloseMonetizationModal} onUpgrade={handleUpgradeToPremium} currentUserId={CURRENT_USER_ID} />}
+            {isMonetizationModalOpen && <MonetizationModal onClose={handleCloseMonetizationModal} onUpgrade={handleUpgradeToPremium} currentUserId={currentUserId} />}
         </div>
     );
 };

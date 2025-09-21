@@ -1,11 +1,19 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
+// Initialize Supabase client (anon)
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_ANON_KEY!
 );
+
+// Create an admin client if a service role key is provided
+const getAdminClient = () => {
+  const url = process.env.SUPABASE_URL!;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) return null;
+  return createClient(url, serviceKey);
+};
 
 async function ensureSchema() {
   // Note: In Supabase, you typically create tables via the dashboard or SQL editor
@@ -46,7 +54,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
   const headers = {
     'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Seed-Token',
   };
 
   if (event.httpMethod === 'OPTIONS') {
@@ -122,6 +130,102 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     });
 
     switch (action) {
+      case 'health': {
+        // Report basic connectivity and counts (anon client)
+        const results: any = {
+          ok: true,
+          env: {
+            supabaseUrl: !!process.env.SUPABASE_URL,
+            supabaseAnon: !!process.env.SUPABASE_ANON_KEY,
+            node: process.version,
+            region: process.env.AWS_REGION || process.env.NF_REGION || null
+          }
+        };
+        try {
+          const { count: usersCount, error: uErr } = await supabase
+            .from('users')
+            .select('*', { count: 'exact', head: true });
+          results.usersCount = usersCount ?? 0;
+          if (uErr) results.usersError = uErr.message;
+        } catch (e: any) {
+          results.usersError = e?.message || 'unknown';
+        }
+        try {
+          const { count: postsCount, error: pErr } = await supabase
+            .from('date_posts')
+            .select('*', { count: 'exact', head: true });
+          results.datePostsCount = postsCount ?? 0;
+          if (pErr) results.datePostsError = pErr.message;
+        } catch (e: any) {
+          results.datePostsError = e?.message || 'unknown';
+        }
+        try {
+          const { count: messagesCount, error: mErr } = await supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true });
+          results.messagesCount = messagesCount ?? 0;
+          if (mErr) results.messagesError = mErr.message;
+        } catch (e: any) {
+          results.messagesError = e?.message || 'unknown';
+        }
+        return { statusCode: 200, headers, body: JSON.stringify(results) };
+      }
+      case 'seedProduction': {
+        // Guarded seed endpoint: requires SEED_ENABLED=true and correct token
+        if (process.env.SEED_ENABLED !== 'true') {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Seeding disabled' }) };
+        }
+        const tokenFromHeader = event.headers['x-seed-token'] || event.headers['X-Seed-Token'];
+        const tokenFromPayload = payload?.token;
+        const expected = process.env.SEED_TOKEN;
+        if (!expected || (tokenFromHeader !== expected && tokenFromPayload !== expected)) {
+          return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
+        }
+
+        const admin = getAdminClient();
+        if (!admin) {
+          return { statusCode: 500, headers, body: JSON.stringify({ error: 'Service role key not configured' }) };
+        }
+
+        // If users already exist, skip
+        const { count: userCount, error: userCountErr } = await admin
+          .from('users')
+          .select('*', { count: 'exact', head: true });
+
+        if (userCountErr) {
+          return { statusCode: 500, headers, body: JSON.stringify({ error: userCountErr.message }) };
+        }
+        if ((userCount ?? 0) > 0) {
+          return { statusCode: 200, headers, body: JSON.stringify({ ok: true, message: 'Users already present, skipping seed', userCount }) };
+        }
+
+        // Seed users (id 1..5)
+        const usersToInsert = [
+          { id: 1, name: 'Alex Jordan', age: 28, bio: "Software engineer who loves building amazing apps. Always up for a coffee chat about tech or life!", photos: ["https://picsum.photos/seed/alex1/400/600","https://picsum.photos/seed/alex2/400/600"], interests: ["Technology","Coffee","Fitness","Travel"], gender: 'male', is_premium: false, preferences: { interestedIn: ['female'], ageRange: { min: 24, max: 35 } }, earned_badge_ids: [] },
+          { id: 2, name: 'Maya Chen', age: 26, bio: 'UX designer passionate about creating beautiful experiences. Dog mom to a golden retriever named Pixel!', photos: ["https://picsum.photos/seed/maya1/400/600","https://picsum.photos/seed/maya2/400/600"], interests: ["Design","Dogs","Art","Hiking"], gender: 'female', is_premium: false, preferences: { interestedIn: ['male'], ageRange: { min: 25, max: 32 } }, earned_badge_ids: [] },
+          { id: 3, name: 'Jordan Rivera', age: 30, bio: 'Entrepreneur building the next big thing. Love adventure sports and trying new cuisines!', photos: ["https://picsum.photos/seed/jordan1/400/600","https://picsum.photos/seed/jordan2/400/600"], interests: ["Business","Adventure","Food","Networking"], gender: 'male', is_premium: false, preferences: { interestedIn: ['female'], ageRange: { min: 26, max: 34 } }, earned_badge_ids: [] },
+          { id: 4, name: 'Sophia Kim', age: 27, bio: 'Marketing manager by day, yoga instructor by evening. Always looking for the next great date idea!', photos: ["https://picsum.photos/seed/sophia1/400/600","https://picsum.photos/seed/sophia2/400/600"], interests: ["Marketing","Yoga","Wellness","Music"], gender: 'female', is_premium: false, preferences: { interestedIn: ['male'], ageRange: { min: 27, max: 35 } }, earned_badge_ids: [] },
+          { id: 5, name: 'Marcus Thompson', age: 29, bio: "Personal trainer who believes in living life to the fullest. Let's explore the city together!", photos: ["https://picsum.photos/seed/marcus1/400/600","https://picsum.photos/seed/marcus2/400/600"], interests: ["Fitness","Sports","Outdoors","Photography"], gender: 'male', is_premium: false, preferences: { interestedIn: ['female'], ageRange: { min: 24, max: 32 } }, earned_badge_ids: [] },
+        ];
+
+        const { error: usersInsertErr } = await admin.from('users').upsert(usersToInsert, { onConflict: 'id' });
+        if (usersInsertErr) {
+          return { statusCode: 500, headers, body: JSON.stringify({ error: usersInsertErr.message }) };
+        }
+
+        // Seed date posts
+        const datePostsToInsert = [
+          { id: 1, title: 'Coffee & Code Chat', description: "Let's grab coffee and talk about our favorite projects! Perfect for fellow tech enthusiasts.", created_by: 1, location: 'Downtown Tech Cafe', date_time: '2024-12-30T15:00:00Z', applicants: [], chosen_applicant_id: null, categories: ['Food & Drink'] },
+          { id: 2, title: 'Sunset Yoga Session', description: 'Join me for a relaxing yoga session at the park as the sun sets. All levels welcome!', created_by: 4, location: 'Central Park Pavilion', date_time: '2024-12-28T17:30:00Z', applicants: [], chosen_applicant_id: null, categories: ['Active & Fitness', 'Relaxing & Casual'] },
+          { id: 3, title: 'Food Truck Adventure', description: "Let's explore the city's best food trucks and try something new! Perfect for foodies.", created_by: 3, location: 'Food Truck Plaza', date_time: '2024-12-29T12:00:00Z', applicants: [], chosen_applicant_id: null, categories: ['Food & Drink', 'Adventure'] },
+        ];
+        const { error: postsInsertErr } = await admin.from('date_posts').upsert(datePostsToInsert as any, { onConflict: 'id' });
+        if (postsInsertErr) {
+          return { statusCode: 500, headers, body: JSON.stringify({ error: postsInsertErr.message }) };
+        }
+
+        return { statusCode: 200, headers, body: JSON.stringify({ ok: true, users: usersToInsert.length, datePosts: datePostsToInsert.length }) };
+      }
       case 'getUsers':
         const { data: users } = await supabase
           .from('users')

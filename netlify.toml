@@ -13,14 +13,20 @@
 [context.production.environment]
   NODE_VERSION = "20"
   DATABASE_PROVIDER = "supabase"
+  SUPABASE_URL = "https://xclhndjglcnkcvibqqgv.supabase.co"
+  SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjbGhuZGpnbGNua2N2aWJxcWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQzOTM2MDEsImV4cCI6MjA0OTk2OTYwMX0.b3D6KBTsQyM6pvZDhN0wkjH3eKaYWBOPFcqNAA0mOLI"
 
 [context.deploy-preview.environment]
   NODE_VERSION = "20"
   DATABASE_PROVIDER = "supabase"
+  SUPABASE_URL = "https://xclhndjglcnkcvibqqgv.supabase.co"
+  SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjbGhuZGpnbGNua2N2aWJxcWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQzOTM2MDEsImV4cCI6MjA0OTk2OTYwMX0.b3D6KBTsQyM6pvZDhN0wkjH3eKaYWBOPFcqNAA0mOLI"
 
 [context.branch-deploy.environment]
   NODE_VERSION = "20"
   DATABASE_PROVIDER = "supabase"
+  SUPABASE_URL = "https://xclhndjglcnkcvibqqgv.supabase.co"
+  SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjbGhuZGpnbGNua2N2aWJxcWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQzOTM2MDEsImV4cCI6MjA0OTk2OTYwMX0.b3D6KBTsQyM6pvZDhN0wkjH3eKaYWBOPFcqNAA0mOLI"
 
 [[redirects]]
   from = "/api/*"
