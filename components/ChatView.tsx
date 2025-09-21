@@ -127,13 +127,17 @@ const ChatView: React.FC<ChatViewProps> = ({
         setSuggestions([]);
     };
 
-    const handleWingmanToggle = () => {
-        if (!currentUser.isPremium) {
+    const handleWingmanToggle = async () => {
+        try {
+            // Verify premium status before allowing wingman
+            const { requirePremiumForFeature } = await import('../services/api');
+            await requirePremiumForFeature(currentUser.id, 'AI Wingman');
+            
+            setIsWingmanOn(prev => !prev);
+            setWingmanTip(null); // Clear tip on toggle
+        } catch (error) {
             onPremiumFeatureClick();
-            return;
         }
-        setIsWingmanOn(prev => !prev);
-        setWingmanTip(null); // Clear tip on toggle
     };
 
     return (

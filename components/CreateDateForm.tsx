@@ -38,10 +38,15 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUs
     const focusRingClass = isMaleTheme ? 'focus:ring-lime-500 focus:border-lime-500' : 'focus:ring-brand-pink focus:border-brand-pink';
 
     const handleGenerateFullDate = async () => {
-        if (!currentUser.isPremium) {
+        try {
+            // Verify premium status before allowing AI generation
+            const { requirePremiumForFeature } = await import('../services/api');
+            await requirePremiumForFeature(currentUser.id, 'AI Date Generation');
+        } catch (error) {
             onPremiumFeatureClick();
             return;
         }
+        
         setIsGeneratingFull(true);
         try {
             const { title, description, location } = await generateFullDateIdea(currentUser);
@@ -80,7 +85,11 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUs
             return;
         }
 
-        if (!currentUser.isPremium) {
+        try {
+            // Verify premium status before allowing location suggestions
+            const { requirePremiumForFeature } = await import('../services/api');
+            await requirePremiumForFeature(currentUser.id, 'AI Location Suggestions');
+        } catch (error) {
             onPremiumFeatureClick();
             return;
         }

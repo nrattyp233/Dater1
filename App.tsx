@@ -131,13 +131,25 @@ const MainApp: React.FC = () => {
                 const savedBackground = localStorage.getItem('appBackground');
                 if (savedBackground) setAppBackground(savedBackground);
 
-                const [fetchedUsers, fetchedDatePosts, fetchedMessages] = await Promise.all([
-                    api.getUsers(), api.getDatePosts(), api.getMessages()
-                ]);
-                setUsers(fetchedUsers);
-                setDatePosts(fetchedDatePosts);
-                setMessages(fetchedMessages);
+                // Try to fetch data, but handle errors gracefully
+                try {
+                    const [fetchedUsers, fetchedDatePosts, fetchedMessages] = await Promise.all([
+                        api.getUsers(), api.getDatePosts(), api.getMessages()
+                    ]);
+                    setUsers(fetchedUsers);
+                    setDatePosts(fetchedDatePosts);
+                    setMessages(fetchedMessages);
+                } catch (apiError) {
+                    console.warn('API not available, using mock data for local development:', apiError);
+                    // Load mock data when API is not available (local development)
+                    const mockData = await import('./services/mockData');
+                    setUsers(mockData.mockUsers);
+                    setDatePosts(mockData.mockDatePosts);
+                    setMessages(mockData.mockMessages);
+                    showToast('Running in offline mode with demo data', 'info');
+                }
             } catch (error) {
+                console.error('Failed to load app data:', error);
                 showToast('Failed to load app data. Please refresh.', 'error');
             } finally {
                 setIsLoading(false);
@@ -347,7 +359,25 @@ const MainApp: React.FC = () => {
     const handleCloseDatePlanner = () => { setIsDatePlannerModalOpen(false); setTimeout(() => setUsersForDatePlanning(null), 300); };
     const handleOpenMonetizationModal = () => setIsMonetizationModalOpen(true);
     const handleCloseMonetizationModal = () => setIsMonetizationModalOpen(false);
-    const handleUpgradeToPremium = () => { if (currentUser) { handleUpdateProfile({ ...currentUser, isPremium: true }); handleCloseMonetizationModal(); showToast('Congratulations! You are now a Create-A-Date Premium member.', 'success'); } };
+    const handleUpgradeToPremium = async () => { 
+        if (currentUser) { 
+            // Verify payment was actually completed before granting premium
+            try {
+                const { verifyPremiumStatus } = await import('./services/api');
+                const isPremiumVerified = await verifyPremiumStatus(CURRENT_USER_ID);
+                
+                if (isPremiumVerified) {
+                    handleUpdateProfile({ ...currentUser, isPremium: true }); 
+                    handleCloseMonetizationModal(); 
+                    showToast('Congratulations! You are now a Create-A-Date Premium member.', 'success');
+                } else {
+                    showToast('Payment verification failed. Please contact support.', 'error');
+                }
+            } catch (error) {
+                showToast('Failed to verify premium status. Please try again.', 'error');
+            }
+        } 
+    };
     const handleOnboardingComplete = () => { localStorage.setItem('hasOnboarded', 'true'); setShowOnboarding(false); };
 
     const handleSignOut = () => { setIsAuthenticated(false); setCurrentView(View.Swipe); showToast("You've been signed out.", "info"); };
@@ -394,7 +424,7 @@ const MainApp: React.FC = () => {
             {isIcebreakerModalOpen && <IcebreakerModal user={selectedUserForModal} onClose={handleCloseIcebreakers} gender={currentUser?.gender} onSendIcebreaker={(message) => { if(selectedUserForModal) { handleSendMessage(selectedUserForModal.id, message); handleCloseIcebreakers(); setCurrentView(View.Chat); } }} />}
             {isFeedbackModalOpen && <ProfileFeedbackModal user={currentUser!} onClose={handleCloseProfileFeedback} gender={currentUser?.gender}/>}
             {isDatePlannerModalOpen && <DatePlannerModal users={usersForDatePlanning} onClose={handleCloseDatePlanner} gender={currentUser?.gender}/>}
-            {isMonetizationModalOpen && <MonetizationModal onClose={handleCloseMonetizationModal} onUpgrade={handleUpgradeToPremium} />}
+            {isMonetizationModalOpen && <MonetizationModal onClose={handleCloseMonetizationModal} onUpgrade={handleUpgradeToPremium} currentUserId={CURRENT_USER_ID} />}
         </div>
     );
 };

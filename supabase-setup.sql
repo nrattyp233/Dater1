@@ -48,12 +48,30 @@ CREATE TABLE messages (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Create payments table (depends on users)
+CREATE TABLE payments (
+  id BIGSERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  paypal_order_id TEXT NOT NULL UNIQUE,
+  paypal_capture_id TEXT,
+  amount DECIMAL(10,2) NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  completed_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Add premium_activated_at column to users table
+ALTER TABLE users ADD COLUMN premium_activated_at TIMESTAMP WITH TIME ZONE;
+
 -- Create indexes for better performance
 CREATE INDEX idx_date_posts_created_by ON date_posts(created_by);
 CREATE INDEX idx_date_posts_created_at ON date_posts(created_at DESC);
 CREATE INDEX idx_messages_sender_id ON messages(sender_id);
 CREATE INDEX idx_messages_receiver_id ON messages(receiver_id);
 CREATE INDEX idx_messages_timestamp ON messages(timestamp DESC);
+CREATE INDEX idx_payments_user_id ON payments(user_id);
+CREATE INDEX idx_payments_paypal_order_id ON payments(paypal_order_id);
+CREATE INDEX idx_payments_status ON payments(status);
 
 -- Disable RLS for now (enable later for production)
 -- ALTER TABLE users ENABLE ROW LEVEL SECURITY;

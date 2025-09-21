@@ -69,13 +69,26 @@ This app is configured to run on Netlify with Supabase as the database. Gemini c
    - `SUPABASE_URL` → your Supabase project URL (found in Settings → API)
    - `SUPABASE_ANON_KEY` → your Supabase anon/public key (found in Settings → API)
    - `GEMINI_API_KEY` → your Google AI Studio key
+   - `PAYPAL_CLIENT_ID` → your PayPal app client ID
+   - `PAYPAL_CLIENT_SECRET` → your PayPal app client secret
+   - `REACT_APP_PAYPAL_CLIENT_ID` → your PayPal app client ID (for frontend)
 
-3) **Deploy:**
+   **PayPal Setup:**
+   - Create a PayPal developer account at https://developer.paypal.com/
+   - Create a new app in the PayPal developer dashboard
+   - Use sandbox credentials for testing, live credentials for production
+   - Copy the Client ID and Client Secret to your environment variables
+
+3) **Set up database with payments support:**
+   - Use the enhanced SQL script in `supabase-setup.sql` which includes payments table
+   - This creates proper payment tracking and premium verification
+
+4) **Deploy:**
    - Push to GitHub and connect your repo in Netlify
    - Netlify will serve static assets from `dist/` and the API from `netlify/functions/`
    - Make sure to set the build command to `npm run build` and publish directory to `dist`
 
-4) **Local development with Netlify CLI:**
+5) **Local development with Netlify CLI:**
    ```bash
    npm install
    npm install -g netlify-cli

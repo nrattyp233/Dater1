@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 import { CrownIcon, XIcon } from '../constants';
+import { paymentService } from '../services/paymentService';
 
 interface MonetizationModalProps {
     onClose: () => void;
     onUpgrade: () => void;
+    currentUserId: number;
 }
 
 const FeatureListItem: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -17,12 +20,59 @@ const FeatureListItem: React.FC<{ children: React.ReactNode }> = ({ children }) 
     </li>
 );
 
-const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrade }) => {
+const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrade, currentUserId }) => {
+    const [paymentError, setPaymentError] = useState<string | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
 
-    const handlePayment = () => {
-        const paypalUrl = "https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=dogpoundreject1@gmail.com&item_name=Premium&amount=10.00&currency_code=USD";
-        window.open(paypalUrl, '_blank', 'noopener,noreferrer');
-        onUpgrade();
+    const paypalOptions = {
+        clientId: process.env.REACT_APP_PAYPAL_CLIENT_ID || "AT54qoA2eRHuZYwXQ2DnkJlITjoocB37A_jRllw",
+        currency: "USD",
+        intent: "capture"
+    };
+
+    const createOrder = async () => {
+        try {
+            setPaymentError(null);
+            setIsProcessing(true);
+            const order = await paymentService.createOrder(currentUserId);
+            return order.orderId;
+        } catch (error: any) {
+            setPaymentError(error.message || 'Failed to create payment order');
+            throw error;
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const onApprove = async (data: any) => {
+        try {
+            setIsProcessing(true);
+            setPaymentError(null);
+            
+            const result = await paymentService.captureOrder(data.orderID, currentUserId);
+            
+            if (result.success) {
+                onUpgrade();
+                onClose();
+            } else {
+                setPaymentError('Payment capture failed. Please try again.');
+            }
+        } catch (error: any) {
+            setPaymentError(error.message || 'Payment processing failed');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const onError = (error: any) => {
+        console.error('PayPal payment error:', error);
+        setPaymentError('Payment failed. Please try again.');
+        setIsProcessing(false);
+    };
+
+    const onCancel = () => {
+        setPaymentError('Payment was cancelled');
+        setIsProcessing(false);
     };
 
     return (
@@ -60,21 +110,51 @@ const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrad
                          <FeatureListItem>
                             <strong>See Who Likes You:</strong> Unlock all your matches immediately.
                         </FeatureListItem>
+                        <FeatureListItem>
+                            <strong>Unlimited Messages:</strong> Chat without limits.
+                        </FeatureListItem>
                     </ul>
                     
-                    <div className="min-h-[76px] flex items-center justify-center">
-                        <button 
-                            onClick={handlePayment}
-                            className="w-full bg-[#0070ba] text-white font-bold py-3 px-4 rounded-lg hover:bg-[#005ea6] transition-colors duration-300 flex items-center justify-center gap-2"
-                        >
-                            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M7.525 2.5h8.95c.588 0 .95.637.747 1.183l-1.99 5.308.204.075c1.23.454 2.055 1.55 2.055 2.822 0 1.65-1.34 2.99-2.99 2.99h-1.28c-.52 0-.964.388-1.03.905l-.33 2.64H8.818l.84-6.723c.06-.48-.31-.905-.79-.905H6.28c-1.65 0-2.99-1.34-2.99-2.99 0-1.47 1.058-2.69 2.455-2.93l.38-.065L7.525 2.5zm1.51 1.042H7.9l-1.12 2.986.32-.054c1.78-.3 3.32 1.01 3.32 2.805 0 .1-.01.2-.02.3l-.32 2.56h.97c.54 0 .99-.45.99-.99s-.45-.99-.99-.99h-.2L13.116 5.3l-4.08-1.758z"></path></svg>
-                            <span>Pay with PayPal</span>
-                        </button>
+                    <div className="min-h-[120px] flex flex-col items-center justify-center">
+                        {paymentError && (
+                            <div className="w-full mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm text-center">
+                                {paymentError}
+                            </div>
+                        )}
+                        
+                        {isProcessing && (
+                            <div className="w-full mb-4 p-3 bg-blue-500/20 border border-blue-500/50 rounded-lg text-blue-400 text-sm text-center">
+                                Processing payment...
+                            </div>
+                        )}
+                        
+                        <div className="w-full">
+                            <PayPalScriptProvider options={paypalOptions}>
+                                <PayPalButtons
+                                    style={{
+                                        layout: "horizontal",
+                                        color: "blue",
+                                        shape: "rect",
+                                        label: "pay"
+                                    }}
+                                    createOrder={createOrder}
+                                    onApprove={onApprove}
+                                    onError={onError}
+                                    onCancel={onCancel}
+                                    disabled={isProcessing}
+                                />
+                            </PayPalScriptProvider>
+                        </div>
+                        
+                        <div className="text-center text-gray-500 text-sm mt-2">
+                            $10.00 USD - One-time payment
+                        </div>
                     </div>
 
                     <button 
                         onClick={onClose} 
                         className="w-full mt-3 text-gray-500 font-semibold hover:text-gray-300 transition"
+                        disabled={isProcessing}
                     >
                         Not Now
                     </button>
@@ -84,6 +164,7 @@ const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrad
                     onClick={onClose} 
                     className="absolute top-3 right-3 text-gray-500 hover:text-white"
                     aria-label="Close"
+                    disabled={isProcessing}
                 >
                     <XIcon className="w-6 h-6" />
                 </button>

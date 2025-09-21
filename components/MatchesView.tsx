@@ -24,10 +24,13 @@ const MatchCard: React.FC<{
         ? 'bg-green-700/80 hover:bg-green-700/100'
         : 'bg-brand-purple/80 hover:bg-brand-purple/100';
 
-    const handlePlanDateClick = () => {
-        if (isPremium) {
+    const handlePlanDateClick = async () => {
+        try {
+            // Verify premium status before allowing date planning
+            const { requirePremiumForFeature } = await import('../services/api');
+            await requirePremiumForFeature(1, 'AI Date Planning'); // Using hardcoded user ID for now
             onPlanDate();
-        } else {
+        } catch (error) {
             onPremiumFeatureClick();
         }
     };

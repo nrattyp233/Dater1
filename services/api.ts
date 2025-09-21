@@ -1,4 +1,5 @@
 import { User, DatePost, Message } from '../types';
+import { premiumVerificationService } from './premiumVerificationService';
 
 const rawDataApi = (import.meta as any)?.env?.VITE_DATA_API as string | undefined;
 const DATA_API = (rawDataApi && rawDataApi.trim()) || '/api/app';
@@ -30,3 +31,18 @@ export const chooseApplicant = (dateId: number, applicantId: number): Promise<Da
 export const toggleInterest = (dateId: number, userId: number): Promise<DatePost> => call('toggleInterest', { dateId, userId });
 export const updateUser = (user: User): Promise<{ ok: boolean }> => call('updateUser', user);
 export const sendMessage = (senderId: number, receiverId: number, text: string): Promise<Message> => call('sendMessage', { senderId, receiverId, text });
+
+// Premium verification function
+export const verifyPremiumStatus = async (userId: number): Promise<boolean> => {
+    try {
+        return await premiumVerificationService.verifyUserPremiumStatus(userId);
+    } catch (error) {
+        console.error('Premium verification failed:', error);
+        return false;
+    }
+};
+
+// Premium-gated API calls
+export const requirePremiumForFeature = async (userId: number, featureName: string): Promise<void> => {
+    await premiumVerificationService.requirePremium(userId, featureName);
+};
