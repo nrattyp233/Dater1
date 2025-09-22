@@ -146,9 +146,50 @@ const MainApp: React.FC = () => {
         }
     };
 
+    // Verify PayPal payment when user returns
+    const verifyPayPalPayment = async (token: string, payerId: string) => {
+        try {
+            const response = await fetch('/.netlify/functions/payments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'captureOrder',
+                    payload: { orderId: token, userId: CURRENT_USER_ID }
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // Payment verified! Grant premium access
+                const updatedUser = { ...currentUser, isPremium: true };
+                handleUpdateProfile(updatedUser);
+                showToast('🎉 Payment successful! You now have Premium access!', 'success');
+                setIsMonetizationModalOpen(false);
+            } else {
+                showToast('Payment verification failed. Please contact support.', 'error');
+            }
+        } catch (error) {
+            console.error('Payment verification error:', error);
+            showToast('Payment verification failed. Please contact support.', 'error');
+        }
+    };
+
     useEffect(() => {
         if (isAuthenticated) {
             fetchInitialData();
+            
+            // Check for PayPal return and verify payment
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+            const payerId = urlParams.get('PayerID');
+            
+            if (token && payerId) {
+                verifyPayPalPayment(token, payerId);
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+            
              // Onboarding check
             const hasOnboarded = localStorage.getItem('hasOnboarded');
             if (!hasOnboarded) {

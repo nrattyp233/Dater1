@@ -55,8 +55,8 @@ async function createPayPalOrder(amount: string = '10.00') {
         description: 'Create-A-Date Premium Subscription'
       }],
       application_context: {
-        return_url: `${process.env.URL || 'http://localhost:5173'}/payment-success`,
-        cancel_url: `${process.env.URL || 'http://localhost:5173'}/payment-cancel`,
+        return_url: `${process.env.URL || 'https://create-a-date.netlify.app'}`,
+        cancel_url: `${process.env.URL || 'https://create-a-date.netlify.app'}`,
         brand_name: 'Create-A-Date',
         user_action: 'PAY_NOW'
       }

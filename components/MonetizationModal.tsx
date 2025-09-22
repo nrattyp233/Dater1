@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CrownIcon, XIcon } from '../constants';
 
 interface MonetizationModalProps {
@@ -21,21 +21,89 @@ const FeatureListItem: React.FC<{ children: React.ReactNode }> = ({ children }) 
 const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrade, currentUserId }) => {
     const [paymentError, setPaymentError] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isPayPalLoaded, setIsPayPalLoaded] = useState(false);
+    const paypalRef = useRef<HTMLDivElement>(null);
 
-    const handlePayPalPayment = () => {
-        // Using your actual PayPal.biz link
-        const paypalUrl = `https://www.paypal.biz/moneybuddygeo?amount=10.00&currency=USD&item_name=Create-A-Date Premium`;
+    // PayPal Client ID - This connects payments to your account
+    const PAYPAL_CLIENT_ID = "AT54qoA2eRHu2YwXQ2DnkJlITjoocB37A_jRllw-IPAseM0mEL7NIYwTWhW_xDU0TWVMKYUta-LIoqE";
+
+    useEffect(() => {
+        // Load PayPal SDK
+        const script = document.createElement('script');
+        script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&currency=USD`;
+        script.async = true;
         
-        // Open PayPal payment
-        window.open(paypalUrl, '_blank', 'width=700,height=600');
+        script.onload = () => {
+            setIsPayPalLoaded(true);
+            renderPayPalButton();
+        };
         
-        // Show completion instructions
-        setIsProcessing(true);
+        script.onerror = () => {
+            setPaymentError('Failed to load PayPal. Please refresh and try again.');
+        };
+        
+        document.body.appendChild(script);
+        
+        return () => {
+            // Cleanup
+            document.body.removeChild(script);
+        };
+    }, []);
+
+    const renderPayPalButton = () => {
+        if (!(window as any).paypal || !paypalRef.current) return;
+        
+        (window as any).paypal.Buttons({
+            createOrder: function(data: any, actions: any) {
+                return fetch('/.netlify/functions/payments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'createOrder',
+                        payload: { userId: currentUserId }
+                    })
+                }).then(function(res) {
+                    return res.json();
+                }).then(function(orderData) {
+                    return orderData.orderId;
+                });
+            },
+            
+            onApprove: function(data: any, actions: any) {
+                return fetch('/.netlify/functions/payments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'captureOrder',
+                        payload: { orderId: data.orderID, userId: currentUserId }
+                    })
+                }).then(function(res) {
+                    return res.json();
+                }).then(function(orderData) {
+                    if (orderData.success) {
+                        // Payment successful!
+                        onUpgrade();
+                        onClose();
+                        alert('🎉 Payment successful! You now have Premium access!');
+                    } else {
+                        setPaymentError('Payment failed. Please try again.');
+                    }
+                });
+            },
+            
+            onError: function(err: any) {
+                console.error('PayPal error:', err);
+                setPaymentError('Payment failed. Please try again.');
+            },
+            
+            onCancel: function(data: any) {
+                setPaymentError('Payment was cancelled.');
+            }
+            
+        }).render(paypalRef.current);
     };
 
     const handlePaymentComplete = () => {
-        // For now, just grant premium access immediately
-        // In a real app, you'd verify the payment server-side
         onUpgrade();
         onClose();
     };
@@ -114,16 +182,18 @@ const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrad
                             </div>
                         ) : (
                             <div className="w-full space-y-4">
-                                <button 
-                                    onClick={handlePayPalPayment}
-                                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-lg transition flex items-center justify-center gap-2"
-                                >
-                                    <span>💳</span>
-                                    Pay $10.00 with PayPal
-                                </button>
-                                <div className="text-center text-gray-500 text-sm">
-                                    One-time payment • Instant access • Secure checkout
-                                </div>
+                                {isPayPalLoaded ? (
+                                    <div>
+                                        <div ref={paypalRef} className="w-full"></div>
+                                        <div className="text-center text-gray-500 text-sm mt-2">
+                                            Secure PayPal checkout • $10.00 USD • Instant premium access
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="w-full p-4 bg-blue-500/20 border border-blue-500/50 rounded-lg text-blue-400 text-center">
+                                        Loading PayPal checkout...
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
