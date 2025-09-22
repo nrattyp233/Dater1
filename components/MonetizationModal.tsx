@@ -24,83 +24,128 @@ const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrad
     const [isPayPalLoaded, setIsPayPalLoaded] = useState(false);
     const paypalRef = useRef<HTMLDivElement>(null);
 
-    // PayPal Client ID - This connects payments to your account
-    const PAYPAL_CLIENT_ID = "AT54qoA2eRHu2YwXQ2DnkJlITjoocB37A_jRllw-IPAseM0mEL7NIYwTWhW_xDU0TWVMKYUta-LIoqE";
+    // PayPal Client ID - Using the one from Netlify environment
+    const PAYPAL_CLIENT_ID = "AT54qoA2eRHuZYwXQ2DnkJlITjoocB37A_jRllw";
 
     useEffect(() => {
-        // Load PayPal SDK
+        console.log('🔍 PayPal Client ID:', PAYPAL_CLIENT_ID);
+        
+        // Load PayPal SDK for LIVE/PRODUCTION mode
         const script = document.createElement('script');
-        script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&currency=USD`;
+        script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&currency=USD&intent=capture`;
         script.async = true;
         
         script.onload = () => {
+            console.log('✅ PayPal SDK loaded successfully');
             setIsPayPalLoaded(true);
             renderPayPalButton();
         };
         
-        script.onerror = () => {
-            setPaymentError('Failed to load PayPal. Please refresh and try again.');
+        script.onerror = (error) => {
+            console.error('❌ Failed to load PayPal SDK:', error);
+            console.error('❌ PayPal SDK URL:', script.src);
+            console.error('❌ Client ID used:', PAYPAL_CLIENT_ID);
+            
+            // Try a simpler SDK URL as fallback
+            const fallbackScript = document.createElement('script');
+            fallbackScript.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}`;
+            fallbackScript.async = true;
+            
+            fallbackScript.onload = () => {
+                console.log('✅ PayPal SDK loaded with fallback URL');
+                setIsPayPalLoaded(true);
+                renderPayPalButton();
+            };
+            
+            fallbackScript.onerror = () => {
+                setPaymentError('PayPal failed to load. Your Client ID might be invalid. Please contact support.');
+            };
+            
+            document.body.appendChild(fallbackScript);
         };
         
         document.body.appendChild(script);
         
         return () => {
             // Cleanup
-            document.body.removeChild(script);
+            try {
+                document.body.removeChild(script);
+            } catch (e) {
+                // Ignore if already removed
+            }
         };
     }, []);
 
     const renderPayPalButton = () => {
-        if (!(window as any).paypal || !paypalRef.current) return;
+        console.log('🎯 Attempting to render PayPal button');
+        console.log('🔍 window.paypal exists:', !!(window as any).paypal);
+        console.log('🔍 paypalRef.current exists:', !!paypalRef.current);
         
-        (window as any).paypal.Buttons({
-            createOrder: function(data: any, actions: any) {
-                return fetch('/.netlify/functions/payments', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'createOrder',
-                        payload: { userId: currentUserId }
-                    })
-                }).then(function(res) {
-                    return res.json();
-                }).then(function(orderData) {
-                    return orderData.orderId;
-                });
-            },
+        if (!(window as any).paypal || !paypalRef.current) {
+            console.error('❌ PayPal or ref not available');
+            return;
+        }
+        
+        try {
+            (window as any).paypal.Buttons({
+                createOrder: function(data: any, actions: any) {
+                    console.log('🔄 Creating PayPal order...');
+                    return fetch('/.netlify/functions/payments', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'createOrder',
+                            payload: { userId: currentUserId }
+                        })
+                    }).then(function(res) {
+                        return res.json();
+                    }).then(function(orderData) {
+                        console.log('✅ Order created:', orderData);
+                        return orderData.orderId;
+                    });
+                },
+                
+                onApprove: function(data: any, actions: any) {
+                    console.log('💳 Payment approved, capturing...');
+                    return fetch('/.netlify/functions/payments', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'captureOrder',
+                            payload: { orderId: data.orderID, userId: currentUserId }
+                        })
+                    }).then(function(res) {
+                        return res.json();
+                    }).then(function(orderData) {
+                        console.log('🎉 Payment result:', orderData);
+                        if (orderData.success) {
+                            // Payment successful!
+                            onUpgrade();
+                            onClose();
+                            alert('🎉 Payment successful! You now have Premium access!');
+                        } else {
+                            setPaymentError('Payment failed. Please try again.');
+                        }
+                    });
+                },
+                
+                onError: function(err: any) {
+                    console.error('❌ PayPal error:', err);
+                    setPaymentError('Payment failed. Please try again.');
+                },
+                
+                onCancel: function(data: any) {
+                    console.log('❌ Payment cancelled');
+                    setPaymentError('Payment was cancelled.');
+                }
+                
+            }).render(paypalRef.current);
             
-            onApprove: function(data: any, actions: any) {
-                return fetch('/.netlify/functions/payments', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'captureOrder',
-                        payload: { orderId: data.orderID, userId: currentUserId }
-                    })
-                }).then(function(res) {
-                    return res.json();
-                }).then(function(orderData) {
-                    if (orderData.success) {
-                        // Payment successful!
-                        onUpgrade();
-                        onClose();
-                        alert('🎉 Payment successful! You now have Premium access!');
-                    } else {
-                        setPaymentError('Payment failed. Please try again.');
-                    }
-                });
-            },
-            
-            onError: function(err: any) {
-                console.error('PayPal error:', err);
-                setPaymentError('Payment failed. Please try again.');
-            },
-            
-            onCancel: function(data: any) {
-                setPaymentError('Payment was cancelled.');
-            }
-            
-        }).render(paypalRef.current);
+            console.log('✅ PayPal button rendered successfully');
+        } catch (error) {
+            console.error('❌ Error rendering PayPal button:', error);
+            setPaymentError('Failed to initialize PayPal. Please refresh and try again.');
+        }
     };
 
     const handlePaymentComplete = () => {
