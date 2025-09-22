@@ -15,6 +15,8 @@
   DATABASE_PROVIDER = "supabase"
   SUPABASE_URL = "https://xclhndjglcnkcvibqqgv.supabase.co"
   SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjbGhuZGpnbGNua2N2aWJxcWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQzOTM2MDEsImV4cCI6MjA0OTk2OTYwMX0.b3D6KBTsQyM6pvZDhN0wkjH3eKaYWBOPFcqNAA0mOLI"
+  SEED_ENABLED = "true"
+  SEED_TOKEN = "FORCE_SEED_NOW_123"
 
 [context.deploy-preview.environment]
   NODE_VERSION = "20"

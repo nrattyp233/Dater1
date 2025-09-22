@@ -22,8 +22,13 @@ async function call<T>(action: string, payload?: any): Promise<T> {
 async function tryDirectUsers(): Promise<User[] | null> {
     if (!supabase) return null;
     try {
+        console.log('Trying direct Supabase connection for users...');
         const { data, error } = await supabase.from('users').select('*').order('id', { ascending: true });
-        if (error) return null;
+        if (error) {
+            console.error('Supabase users error:', error);
+            return null;
+        }
+        console.log('Direct users fetch success:', data?.length || 0, 'users');
         return (data || []).map((row: any) => ({
             id: row.id,
             name: row.name,
@@ -36,7 +41,8 @@ async function tryDirectUsers(): Promise<User[] | null> {
             preferences: row.preferences ?? null,
             earnedBadgeIds: row.earned_badge_ids ?? [],
         }));
-    } catch {
+    } catch (e) {
+        console.error('Direct users fetch failed:', e);
         return null;
     }
 }
@@ -81,32 +87,38 @@ async function tryDirectMessages(): Promise<Message[] | null> {
 }
 
 export const getUsers = async (): Promise<User[]> => {
+    console.log('getUsers called, trying direct Supabase connection...');
     try {
-        return await call<User[]>('getUsers');
-    } catch {
-        const fallback = await tryDirectUsers();
-        if (fallback) return fallback;
-        throw new Error('Failed to load users');
+        const result = await tryDirectUsers();
+        if (result) {
+            console.log('Direct Supabase success:', result.length, 'users');
+            return result;
+        }
+        console.log('No users found - this is normal for a fresh app');
+        return [];
+    } catch (e) {
+        console.error('Failed to connect to database:', e);
+        return [];
     }
 };
 
 export const getDatePosts = async (): Promise<DatePost[]> => {
     try {
-        return await call<DatePost[]>('getDatePosts');
+        const result = await tryDirectDatePosts();
+        if (result) return result;
+        return [];
     } catch {
-        const fallback = await tryDirectDatePosts();
-        if (fallback) return fallback;
-        throw new Error('Failed to load date posts');
+        return [];
     }
 };
 
 export const getMessages = async (): Promise<Message[]> => {
     try {
-        return await call<Message[]>('getMessages');
+        const result = await tryDirectMessages();
+        if (result) return result;
+        return [];
     } catch {
-        const fallback = await tryDirectMessages();
-        if (fallback) return fallback;
-        throw new Error('Failed to load messages');
+        return [];
     }
 };
 

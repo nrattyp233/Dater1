@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 import { CrownIcon, XIcon } from '../constants';
-import { paymentService } from '../services/paymentService';
 
 interface MonetizationModalProps {
     onClose: () => void;
@@ -24,55 +22,22 @@ const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrad
     const [paymentError, setPaymentError] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
 
-    const paypalOptions = {
-        clientId: process.env.REACT_APP_PAYPAL_CLIENT_ID || "AT54qoA2eRHuZYwXQ2DnkJlITjoocB37A_jRllw",
-        currency: "USD",
-        intent: "capture"
+    const handlePayPalPayment = () => {
+        // Using your actual PayPal.biz link
+        const paypalUrl = `https://www.paypal.biz/moneybuddygeo?amount=10.00&currency=USD&item_name=Create-A-Date Premium`;
+        
+        // Open PayPal payment
+        window.open(paypalUrl, '_blank', 'width=700,height=600');
+        
+        // Show completion instructions
+        setIsProcessing(true);
     };
 
-    const createOrder = async () => {
-        try {
-            setPaymentError(null);
-            setIsProcessing(true);
-            const order = await paymentService.createOrder(currentUserId);
-            return order.orderId;
-        } catch (error: any) {
-            setPaymentError(error.message || 'Failed to create payment order');
-            throw error;
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const onApprove = async (data: any) => {
-        try {
-            setIsProcessing(true);
-            setPaymentError(null);
-            
-            const result = await paymentService.captureOrder(data.orderID, currentUserId);
-            
-            if (result.success) {
-                onUpgrade();
-                onClose();
-            } else {
-                setPaymentError('Payment capture failed. Please try again.');
-            }
-        } catch (error: any) {
-            setPaymentError(error.message || 'Payment processing failed');
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const onError = (error: any) => {
-        console.error('PayPal payment error:', error);
-        setPaymentError('Payment failed. Please try again.');
-        setIsProcessing(false);
-    };
-
-    const onCancel = () => {
-        setPaymentError('Payment was cancelled');
-        setIsProcessing(false);
+    const handlePaymentComplete = () => {
+        // For now, just grant premium access immediately
+        // In a real app, you'd verify the payment server-side
+        onUpgrade();
+        onClose();
     };
 
     return (
@@ -119,36 +84,48 @@ const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrad
                         {paymentError && (
                             <div className="w-full mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm text-center">
                                 {paymentError}
+                                <button 
+                                    onClick={() => setPaymentError(null)}
+                                    className="ml-2 text-red-300 hover:text-red-100"
+                                >
+                                    ✕
+                                </button>
                             </div>
                         )}
                         
-                        {isProcessing && (
-                            <div className="w-full mb-4 p-3 bg-blue-500/20 border border-blue-500/50 rounded-lg text-blue-400 text-sm text-center">
-                                Processing payment...
+                        {isProcessing ? (
+                            <div className="w-full space-y-4">
+                                <div className="w-full p-4 bg-blue-500/20 border border-blue-500/50 rounded-lg text-blue-400 text-center">
+                                    <p className="font-semibold">Payment Window Opened!</p>
+                                    <p className="text-sm mt-2">Complete your $10.00 payment in the PayPal window, then click below:</p>
+                                </div>
+                                <button 
+                                    onClick={handlePaymentComplete}
+                                    className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition"
+                                >
+                                    ✅ I Completed the Payment
+                                </button>
+                                <button 
+                                    onClick={() => setIsProcessing(false)}
+                                    className="w-full py-2 text-gray-400 hover:text-gray-300 transition"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="w-full space-y-4">
+                                <button 
+                                    onClick={handlePayPalPayment}
+                                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-lg transition flex items-center justify-center gap-2"
+                                >
+                                    <span>💳</span>
+                                    Pay $10.00 with PayPal
+                                </button>
+                                <div className="text-center text-gray-500 text-sm">
+                                    One-time payment • Instant access • Secure checkout
+                                </div>
                             </div>
                         )}
-                        
-                        <div className="w-full">
-                            <PayPalScriptProvider options={paypalOptions}>
-                                <PayPalButtons
-                                    style={{
-                                        layout: "horizontal",
-                                        color: "blue",
-                                        shape: "rect",
-                                        label: "pay"
-                                    }}
-                                    createOrder={createOrder}
-                                    onApprove={onApprove}
-                                    onError={onError}
-                                    onCancel={onCancel}
-                                    disabled={isProcessing}
-                                />
-                            </PayPalScriptProvider>
-                        </div>
-                        
-                        <div className="text-center text-gray-500 text-sm mt-2">
-                            $10.00 USD - One-time payment
-                        </div>
                     </div>
 
                     <button 

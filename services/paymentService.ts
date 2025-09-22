@@ -35,7 +35,7 @@ class PaymentService {
 
   constructor() {
     this.baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://your-app.netlify.app/.netlify/functions' 
+      ? 'https://create-a-date.netlify.app/.netlify/functions' 
       : '/.netlify/functions';
   }
 

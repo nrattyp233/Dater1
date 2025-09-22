@@ -177,10 +177,28 @@ const MainApp: React.FC = () => {
     }, [currentView]);
 
 
-    // Pick the requested user; if missing, fall back to the first available user
+    // Pick the first user or create a default user for profile creation
     const currentUser = useMemo(() => {
-        const exact = users.find(u => u.id === CURRENT_USER_ID);
-        return exact || (users.length > 0 ? users[0] : undefined);
+        if (users.length > 0) {
+            const exact = users.find(u => u.id === CURRENT_USER_ID);
+            return exact || users[0];
+        }
+        // Return a default user for profile creation if no users exist
+        return {
+            id: CURRENT_USER_ID,
+            name: '',
+            age: 25,
+            bio: '',
+            photos: [],
+            interests: [],
+            gender: 'male' as any,
+            isPremium: false,
+            preferences: {
+                interestedIn: ['female' as any],
+                ageRange: { min: 18, max: 35 }
+            },
+            earnedBadgeIds: []
+        };
     }, [users]);
 
     const currentUserId = currentUser?.id ?? CURRENT_USER_ID;
@@ -384,12 +402,13 @@ const MainApp: React.FC = () => {
         if (!currentUser && !isLoading) {
             return (
                 <div className="text-center text-gray-300">
-                    <p className="mb-4">No users are available yet. Please try again in a moment.</p>
+                    <h2 className="text-2xl font-bold mb-4">Welcome to Create-A-Date!</h2>
+                    <p className="mb-4">Ready to start meeting amazing people? Create your profile and start swiping!</p>
                     <button
-                        onClick={fetchInitialData}
-                        className="px-4 py-2 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-brand-pink to-brand-purple text-white hover:opacity-90"
+                        onClick={() => setCurrentView(View.Profile)}
+                        className="px-6 py-3 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-brand-pink to-brand-purple text-white hover:opacity-90"
                     >
-                        Retry
+                        Create Your Profile
                     </button>
                 </div>
             );
@@ -397,16 +416,72 @@ const MainApp: React.FC = () => {
 
         switch (currentView) {
             case View.Swipe:
+                if (users.length === 0) {
+                    return (
+                        <div className="text-center text-gray-300">
+                            <h2 className="text-2xl font-bold mb-4">No Profiles Yet!</h2>
+                            <p className="mb-4">Be the first to create a profile and start building the community!</p>
+                            <button
+                                onClick={() => setCurrentView(View.Profile)}
+                                className="px-6 py-3 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-brand-pink to-brand-purple text-white hover:opacity-90"
+                            >
+                                Create Your Profile
+                            </button>
+                        </div>
+                    );
+                }
                 return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} weeklyChallenge={weeklyChallenge} onCompleteChallenge={handleCompleteChallenge} />;
             case View.Dates:
+                if (datePosts.length === 0) {
+                    return (
+                        <div className="text-center text-gray-300">
+                            <h2 className="text-2xl font-bold mb-4">No Date Ideas Yet!</h2>
+                            <p className="mb-4">Be the first to post an amazing date idea!</p>
+                            <button
+                                onClick={() => setCurrentView(View.Create)}
+                                className="px-6 py-3 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-brand-pink to-brand-purple text-white hover:opacity-90"
+                            >
+                                Create First Date
+                            </button>
+                        </div>
+                    );
+                }
                 return <DateMarketplace datePosts={datePosts} allUsers={users} onToggleInterest={handleToggleInterest} currentUserId={currentUserId} gender={currentUser?.gender} isLoading={isLoading} onViewProfile={handleViewProfile} activeColorTheme={activeColorTheme} />;
             case View.Create:
                 return <CreateDateForm onCreateDate={handleCreateDate} currentUser={currentUser!} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
             case View.Matches:
+                if (matchedUsers.length === 0) {
+                    return (
+                        <div className="text-center text-gray-300">
+                            <h2 className="text-2xl font-bold mb-4">No Matches Yet!</h2>
+                            <p className="mb-4">Start swiping to find your perfect match!</p>
+                            <button
+                                onClick={() => setCurrentView(View.Swipe)}
+                                className="px-6 py-3 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-brand-pink to-brand-purple text-white hover:opacity-90"
+                            >
+                                Start Swiping
+                            </button>
+                        </div>
+                    );
+                }
                 return <MatchesView matchedUsers={matchedUsers} currentUser={currentUser!} onViewProfile={handleViewProfile} onPlanDate={handlePlanDate} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
              case View.Chat:
                 return <ChatView currentUser={currentUser!} matchedUsers={matchedUsers} allUsers={users} messages={messages} onSendMessage={handleSendMessage} onViewProfile={handleViewProfile} isChatDisabled={!currentUser?.isPremium && sentMessageCount >= FREE_MESSAGE_LIMIT} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
             case View.MyDates:
+                if (myDates.length === 0) {
+                    return (
+                        <div className="text-center text-gray-300">
+                            <h2 className="text-2xl font-bold mb-4">No Dates Posted Yet!</h2>
+                            <p className="mb-4">Create your first date idea and start attracting matches!</p>
+                            <button
+                                onClick={() => setCurrentView(View.Create)}
+                                className="px-6 py-3 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-brand-pink to-brand-purple text-white hover:opacity-90"
+                            >
+                                Create Date Idea
+                            </button>
+                        </div>
+                    );
+                }
                 return <MyDatesManager myDates={myDates} allUsers={users} onChooseApplicant={handleChooseApplicant} onDeleteDate={handleDeleteDate} gender={currentUser?.gender} onViewProfile={handleViewProfile} activeColorTheme={activeColorTheme} />;
             case View.Profile:
                 return <ProfileSettings currentUser={currentUser!} onSave={handleUpdateProfile} onGetFeedback={handleGetProfileFeedback} activeColorTheme={activeColorTheme} onSignOut={handleSignOut} onPremiumFeatureClick={handleOpenMonetizationModal} onSetAppBackground={handleSetAppBackground} />;

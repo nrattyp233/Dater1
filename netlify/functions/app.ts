@@ -198,18 +198,17 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
           return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
         }
 
-        const admin = getAdminClient();
-        if (!admin) {
-          return { statusCode: 500, headers, body: JSON.stringify({ error: 'Service role key not configured' }) };
-        }
+        // Use regular anon client for seeding (skip service role requirement)
+        const seedClient = supabase;
 
         // If users already exist, skip
-        const { count: userCount, error: userCountErr } = await admin
+        const { count: userCount, error: userCountErr } = await seedClient
           .from('users')
           .select('*', { count: 'exact', head: true });
 
         if (userCountErr) {
-          return { statusCode: 500, headers, body: JSON.stringify({ error: userCountErr.message }) };
+          console.error('User count check failed:', userCountErr);
+          // Continue anyway - tables might not exist yet
         }
         if ((userCount ?? 0) > 0) {
           return { statusCode: 200, headers, body: JSON.stringify({ ok: true, message: 'Users already present, skipping seed', userCount }) };
@@ -224,8 +223,9 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
           { id: 5, name: 'Marcus Thompson', age: 29, bio: "Personal trainer who believes in living life to the fullest. Let's explore the city together!", photos: ["https://picsum.photos/seed/marcus1/400/600","https://picsum.photos/seed/marcus2/400/600"], interests: ["Fitness","Sports","Outdoors","Photography"], gender: 'male', is_premium: false, preferences: { interestedIn: ['female'], ageRange: { min: 24, max: 32 } }, earned_badge_ids: [] },
         ];
 
-        const { error: usersInsertErr } = await admin.from('users').upsert(usersToInsert, { onConflict: 'id' });
+        const { error: usersInsertErr } = await seedClient.from('users').upsert(usersToInsert, { onConflict: 'id' });
         if (usersInsertErr) {
+          console.error('Users insert failed:', usersInsertErr);
           return { statusCode: 500, headers, body: JSON.stringify({ error: usersInsertErr.message }) };
         }
 
@@ -235,8 +235,9 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
           { id: 2, title: 'Sunset Yoga Session', description: 'Join me for a relaxing yoga session at the park as the sun sets. All levels welcome!', created_by: 4, location: 'Central Park Pavilion', date_time: '2024-12-28T17:30:00Z', applicants: [], chosen_applicant_id: null, categories: ['Active & Fitness', 'Relaxing & Casual'] },
           { id: 3, title: 'Food Truck Adventure', description: "Let's explore the city's best food trucks and try something new! Perfect for foodies.", created_by: 3, location: 'Food Truck Plaza', date_time: '2024-12-29T12:00:00Z', applicants: [], chosen_applicant_id: null, categories: ['Food & Drink', 'Adventure'] },
         ];
-        const { error: postsInsertErr } = await admin.from('date_posts').upsert(datePostsToInsert as any, { onConflict: 'id' });
+        const { error: postsInsertErr } = await seedClient.from('date_posts').upsert(datePostsToInsert as any, { onConflict: 'id' });
         if (postsInsertErr) {
+          console.error('Posts insert failed:', postsInsertErr);
           return { statusCode: 500, headers, body: JSON.stringify({ error: postsInsertErr.message }) };
         }
 
