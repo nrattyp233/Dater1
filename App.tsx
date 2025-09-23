@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, User, DatePost, Message, Badge } from './types';
-import { CURRENT_USER_ID, colorThemes, ColorTheme, BADGES, WEEKLY_CHALLENGE_PROMPTS, HeartIcon, CalendarIcon, PlusIcon, ChatIcon } from './constants';
+import { colorThemes, ColorTheme, BADGES, WEEKLY_CHALLENGE_PROMPTS, HeartIcon, CalendarIcon, PlusIcon, ChatIcon } from './constants';
 import * as api from './services/api';
 import { categorizeDatePost } from './services/geminiService';
 import { useToast, ToastProvider } from './contexts/ToastContext';
@@ -96,14 +96,16 @@ const OnboardingGuide: React.FC<{ onFinish: () => void }> = ({ onFinish }) => {
 const MainApp: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [authLoading, setAuthLoading] = useState(true);
+    const [currentAuthUser, setCurrentAuthUser] = useState<any>(null);
     const [currentView, setCurrentView] = useState<View>(View.Swipe);
     const [users, setUsers] = useState<User[]>([]);
     const [datePosts, setDatePosts] = useState<DatePost[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
-    const [matches, setMatches] = useState<number[]>([4, 6, 2, 5]); // Pre-populate with matches for demo
-    const [swipedLeftIds, setSwipedLeftIds] = useState<number[]>([]);
+    const [matches, setMatches] = useState<string[]>([]); // Changed to string array for user IDs
+    const [swipedLeftIds, setSwipedLeftIds] = useState<string[]>([]);
+    const [swipedRightIds, setSwipedRightIds] = useState<string[]>([]); // Track who user swiped right on
     const [isLoading, setIsLoading] = useState(true);
-    const [lastSwipedUserId, setLastSwipedUserId] = useState<number | null>(null);
+    const [lastSwipedUserId, setLastSwipedUserId] = useState<string | null>(null);
     const { showToast } = useToast();
     
     // State for dynamic color theme
@@ -124,7 +126,15 @@ const MainApp: React.FC = () => {
 
     // New feature states
     const [showOnboarding, setShowOnboarding] = useState(false);
+    const [showProfileSetup, setShowProfileSetup] = useState(false);
     const [weeklyChallenge, setWeeklyChallenge] = useState<{ theme: string, prompt: string; isCompleted: boolean } | null>(null);
+
+    // Get current authenticated user ID
+    const getCurrentUserId = () => {
+        if (!currentAuthUser) return null;
+        // Use the Supabase user ID directly
+        return currentAuthUser.id;
+    };
 
     // Data loader (reusable for initial load and retries)
     const fetchInitialData = async () => {
@@ -151,16 +161,14 @@ const MainApp: React.FC = () => {
     // Verify PayPal payment when user returns
     const verifyPayPalPayment = async (token: string, payerId: string) => {
         try {
-            const response = await fetch('/.netlify/functions/payments', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'captureOrder',
-                    payload: { orderId: token, userId: CURRENT_USER_ID }
-                })
-            });
-            
-            const result = await response.json();
+                const response = await fetch('/.netlify/functions/payments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'captureOrder',
+                        payload: { orderId: token, userId: getCurrentUserId() }
+                    })
+                });            const result = await response.json();
             
             if (result.success) {
                 // Payment verified! Grant premium access
@@ -182,6 +190,7 @@ const MainApp: React.FC = () => {
         const checkAuth = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             setIsAuthenticated(!!session);
+            setCurrentAuthUser(session?.user || null);
             setAuthLoading(false);
         };
 
@@ -190,6 +199,7 @@ const MainApp: React.FC = () => {
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             setIsAuthenticated(!!session);
+            setCurrentAuthUser(session?.user || null);
             setAuthLoading(false);
             
             if (event === 'SIGNED_IN') {
@@ -221,6 +231,12 @@ const MainApp: React.FC = () => {
             const hasOnboarded = localStorage.getItem('hasOnboarded');
             if (!hasOnboarded) {
                 setShowOnboarding(true);
+            } else {
+                // Profile completion check - only after onboarding
+                const hasCompletedProfileSetup = localStorage.getItem('hasCompletedProfileSetup');
+                if (!hasCompletedProfileSetup) {
+                    setShowProfileSetup(true);
+                }
             }
             // Weekly Challenge logic
             const today = new Date();
@@ -236,6 +252,77 @@ const MainApp: React.FC = () => {
         }
     }, [showToast, isAuthenticated]);
 
+    // Load user-specific data when user changes
+    useEffect(() => {
+        const currentUserId = getCurrentUserId();
+        if (!currentUserId) {
+            setMatches([]);
+            setSwipedLeftIds([]);
+            setSwipedRightIds([]);
+            return;
+        }
+
+        // Load user-specific swipe data from localStorage
+        const savedMatches = localStorage.getItem(`matches_${currentUserId}`);
+        const savedSwipedLeft = localStorage.getItem(`swipedLeft_${currentUserId}`);
+        const savedSwipedRight = localStorage.getItem(`swipedRight_${currentUserId}`);
+        
+        if (savedMatches) {
+            try {
+                setMatches(JSON.parse(savedMatches));
+            } catch (e) {
+                console.error('Failed to parse saved matches:', e);
+                setMatches([]);
+            }
+        } else {
+            setMatches([]);
+        }
+        
+        if (savedSwipedLeft) {
+            try {
+                setSwipedLeftIds(JSON.parse(savedSwipedLeft));
+            } catch (e) {
+                console.error('Failed to parse saved swipe left data:', e);
+                setSwipedLeftIds([]);
+            }
+        } else {
+            setSwipedLeftIds([]);
+        }
+
+        if (savedSwipedRight) {
+            try {
+                setSwipedRightIds(JSON.parse(savedSwipedRight));
+            } catch (e) {
+                console.error('Failed to parse saved swipe right data:', e);
+                setSwipedRightIds([]);
+            }
+        } else {
+            setSwipedRightIds([]);
+        }
+    }, [currentAuthUser]);
+
+    // Save swipe data when it changes
+    useEffect(() => {
+        const currentUserId = getCurrentUserId();
+        if (!currentUserId) return;
+        
+        localStorage.setItem(`matches_${currentUserId}`, JSON.stringify(matches));
+    }, [matches, currentAuthUser]);
+
+    useEffect(() => {
+        const currentUserId = getCurrentUserId();
+        if (!currentUserId) return;
+        
+        localStorage.setItem(`swipedLeft_${currentUserId}`, JSON.stringify(swipedLeftIds));
+    }, [swipedLeftIds, currentAuthUser]);
+
+    useEffect(() => {
+        const currentUserId = getCurrentUserId();
+        if (!currentUserId) return;
+        
+        localStorage.setItem(`swipedRight_${currentUserId}`, JSON.stringify(swipedRightIds));
+    }, [swipedRightIds, currentAuthUser]);
+
     useEffect(() => {
         let newIndex;
         do { newIndex = Math.floor(Math.random() * colorThemes.length); } 
@@ -245,16 +332,38 @@ const MainApp: React.FC = () => {
     }, [currentView]);
 
 
-    // Pick the first user or create a default user for profile creation
+    // Helper function to check if a user profile is complete
+    const isProfileComplete = (user: User): boolean => {
+        return !!(
+            user.name && 
+            user.name.trim() !== '' &&
+            user.bio && 
+            user.bio.trim() !== '' &&
+            user.photos && 
+            user.photos.length > 0 &&
+            user.interests && 
+            user.interests.length > 0 &&
+            user.age && 
+            user.age > 0
+        );
+    };
+
+    // Pick the user profile for the current authenticated user
     const currentUser = useMemo(() => {
-        if (users.length > 0) {
-            const exact = users.find(u => u.id === CURRENT_USER_ID);
-            return exact || users[0];
+        const currentUserId = getCurrentUserId();
+        if (!currentUserId) return null;
+        
+        // Look for existing user profile in database
+        const existingUser = users.find(u => u.id === currentUserId);
+        if (existingUser) {
+            return existingUser;
         }
-        // Return a default user for profile creation if no users exist
+        
+        // If no profile exists, create a default one for the authenticated user
+        // This will prompt them to complete their profile
         return {
-            id: CURRENT_USER_ID,
-            name: '',
+            id: currentUserId,
+            name: currentAuthUser?.user_metadata?.full_name || '',
             age: 25,
             bio: '',
             photos: [],
@@ -267,18 +376,35 @@ const MainApp: React.FC = () => {
             },
             earnedBadgeIds: []
         };
-    }, [users]);
+    }, [users, currentAuthUser]);
 
-    const currentUserId = currentUser?.id ?? CURRENT_USER_ID;
+    const currentUserId = currentUser?.id ?? getCurrentUserId();
 
     const matchedUsers = useMemo(() => {
         return users.filter(user => matches.includes(user.id));
     }, [users, matches]);
+
+    // Filter messages to only show conversations between current user and matched users
+    const userMessages = useMemo(() => {
+        const currentUserId = getCurrentUserId();
+        if (!currentUserId) return [];
+        
+        const matchedUserIds = new Set(matches);
+        
+        return messages.filter(message => {
+            // Include messages where current user is sender and receiver is a match
+            const isSentToMatch = message.senderId === currentUserId && matchedUserIds.has(message.receiverId);
+            // Include messages where current user is receiver and sender is a match  
+            const isReceivedFromMatch = message.receiverId === currentUserId && matchedUserIds.has(message.senderId);
+            
+            return isSentToMatch || isReceivedFromMatch;
+        });
+    }, [messages, matches, currentAuthUser]);
     
     const sentMessageCount = useMemo(() => {
         if (!currentUser || currentUser.isPremium) return 0;
-        return messages.filter(m => m.senderId === CURRENT_USER_ID).length;
-    }, [messages, currentUser]);
+        return messages.filter(m => m.senderId === getCurrentUserId()).length;
+    }, [messages, currentUser, currentAuthUser]);
     
     const FREE_MESSAGE_LIMIT = 20;
 
@@ -288,18 +414,22 @@ const MainApp: React.FC = () => {
             const isNotCurrentUser = u.id !== currentUserId;
             const isNotMatched = !matches.includes(u.id);
             const isNotSwipedLeft = !swipedLeftIds.includes(u.id);
-            if (!currentUser.preferences) return isNotCurrentUser && isNotMatched && isNotSwipedLeft;
+            const isNotSwipedRight = !swipedRightIds.includes(u.id);
+            if (!currentUser.preferences) return isNotCurrentUser && isNotMatched && isNotSwipedLeft && isNotSwipedRight;
             
             const matchesGenderPref = currentUser.preferences.interestedIn.includes(u.gender);
             const matchesAgePref = u.age >= currentUser.preferences.ageRange.min && u.age <= currentUser.preferences.ageRange.max;
             
-            return isNotCurrentUser && isNotMatched && isNotSwipedLeft && matchesGenderPref && matchesAgePref;
+            return isNotCurrentUser && isNotMatched && isNotSwipedLeft && isNotSwipedRight && matchesGenderPref && matchesAgePref;
         });
-    }, [users, matches, swipedLeftIds, currentUser, currentUserId]);
+    }, [users, matches, swipedLeftIds, swipedRightIds, currentUser, currentAuthUser]);
     
     const myDates = datePosts.filter(d => d.createdBy === currentUserId);
     
     const earnBadge = (badgeId: Badge['id']) => {
+        const currentUserId = getCurrentUserId();
+        if (!currentUserId) return;
+        
         const user = users.find(u => u.id === currentUserId);
         if (!user || user.earnedBadgeIds?.includes(badgeId)) {
             return;
@@ -311,12 +441,64 @@ const MainApp: React.FC = () => {
         ));
     };
 
-    const handleSwipe = (userId: number, direction: 'left' | 'right') => {
+    // Helper function to check if two users have swiped right on each other
+    const checkForMutualMatch = (userId: string, currentUserId: string): boolean => {
+        // Check if the other user has swiped right on the current user
+        const otherUserSwipedRight = localStorage.getItem(`swipedRight_${userId}`);
+        if (!otherUserSwipedRight) return false;
+        
+        try {
+            const otherUserRightSwipes: string[] = JSON.parse(otherUserSwipedRight);
+            return otherUserRightSwipes.includes(currentUserId);
+        } catch (e) {
+            console.error('Failed to parse other user swipe data:', e);
+            return false;
+        }
+    };
+
+    const handleSwipe = (userId: string, direction: 'left' | 'right') => {
+        const currentUserId = getCurrentUserId();
+        if (!currentUserId) return;
+        
         setLastSwipedUserId(userId);
+        
         if (direction === 'right') {
-            setMatches(prev => [...prev, userId]);
-            const matchedUser = users.find(u => u.id === userId);
-            showToast(`You matched with ${matchedUser?.name}!`, 'success');
+            // Add to user's right swipes
+            setSwipedRightIds(prev => [...prev, userId]);
+            
+            // Check if this creates a mutual match
+            if (checkForMutualMatch(userId, currentUserId)) {
+                // Both users swiped right - create a match!
+                setMatches(prev => [...prev, userId]);
+                
+                // Also add the current user to the other user's matches
+                // This ensures both users see each other as matches
+                const otherUserMatches = localStorage.getItem(`matches_${userId}`);
+                let updatedOtherUserMatches: string[];
+                
+                if (otherUserMatches) {
+                    try {
+                        updatedOtherUserMatches = JSON.parse(otherUserMatches);
+                        if (!updatedOtherUserMatches.includes(currentUserId)) {
+                            updatedOtherUserMatches.push(currentUserId);
+                        }
+                    } catch (e) {
+                        console.error('Failed to parse other user matches:', e);
+                        updatedOtherUserMatches = [currentUserId];
+                    }
+                } else {
+                    updatedOtherUserMatches = [currentUserId];
+                }
+                
+                localStorage.setItem(`matches_${userId}`, JSON.stringify(updatedOtherUserMatches));
+                
+                const matchedUser = users.find(u => u.id === userId);
+                showToast(`🎉 You matched with ${matchedUser?.name}!`, 'success');
+            } else {
+                // Just a right swipe, no match yet
+                const swipedUser = users.find(u => u.id === userId);
+                showToast(`Swiped right on ${swipedUser?.name}`, 'info');
+            }
         } else {
             setSwipedLeftIds(prev => [...prev, userId]);
         }
@@ -326,12 +508,19 @@ const MainApp: React.FC = () => {
         if (!lastSwipedUserId) return;
         setMatches(prev => prev.filter(id => id !== lastSwipedUserId));
         setSwipedLeftIds(prev => prev.filter(id => id !== lastSwipedUserId));
+        setSwipedRightIds(prev => prev.filter(id => id !== lastSwipedUserId));
         const recalledUser = users.find(u => u.id === lastSwipedUserId);
         showToast(`Recalled ${recalledUser?.name || 'profile'}.`, 'info');
         setLastSwipedUserId(null);
     };
 
     const handleToggleInterest = async (dateId: number) => {
+        const currentUserId = getCurrentUserId();
+        if (!currentUserId) {
+            showToast('Please sign in to express interest.', 'error');
+            return;
+        }
+        
         try {
             const updated = await api.toggleInterest(dateId, currentUserId);
             setDatePosts(prev => prev.map(p => (p.id === updated.id ? updated : p)));
@@ -343,7 +532,11 @@ const MainApp: React.FC = () => {
     };
 
     const handleCreateDate = async (newDateData: Omit<DatePost, 'id' | 'createdBy' | 'applicants' | 'chosenApplicantId' | 'categories'>) => {
-        if (!currentUser) return;
+        const currentUserId = getCurrentUserId();
+        if (!currentUser || !currentUserId) {
+            showToast('Please sign in to create a date.', 'error');
+            return;
+        }
 
         showToast('AI is categorizing your date...', 'info');
         try {
@@ -375,7 +568,7 @@ const MainApp: React.FC = () => {
         }
     };
 
-    const handleChooseApplicant = async (dateId: number, applicantId: number) => {
+    const handleChooseApplicant = async (dateId: number, applicantId: string) => {
         try {
             const updated = await api.chooseApplicant(dateId, applicantId);
             setDatePosts(prev => prev.map(p => (p.id === updated.id ? updated : p)));
@@ -388,16 +581,36 @@ const MainApp: React.FC = () => {
 
     const handleUpdateProfile = async (updatedUser: User) => {
         try {
+            const wasProfileIncomplete = currentUser && !isProfileComplete(currentUser);
+            const isNowComplete = isProfileComplete(updatedUser);
+            
             await api.updateUser(updatedUser);
             setUsers(prevUsers => prevUsers.map(u => (u.id === updatedUser.id ? updatedUser : u)));
-            showToast('Profile saved successfully!', 'success');
+            
+            // Check if this completes the initial profile setup
+            if (showProfileSetup && wasProfileIncomplete && isNowComplete) {
+                handleProfileSetupComplete();
+            } else {
+                showToast('Profile saved successfully!', 'success');
+            }
         } catch (error: any) {
             showToast(error.message || 'Failed to save profile.', 'error');
         }
     };
 
-    const handleSendMessage = async (receiverId: number, text: string) => {
-        if (!currentUser) return;
+    const handleSendMessage = async (receiverId: string, text: string) => {
+        const currentUserId = getCurrentUserId();
+        if (!currentUser || !currentUserId) {
+            showToast('Please sign in to send messages.', 'error');
+            return;
+        }
+        
+        // Check if the receiver is in the user's matches
+        if (!matches.includes(receiverId)) {
+            showToast('You can only message users you have matched with.', 'error');
+            return;
+        }
+        
         if (!currentUser.isPremium && sentMessageCount >= FREE_MESSAGE_LIMIT) {
             handleOpenMonetizationModal();
             showToast(`You've used your ${FREE_MESSAGE_LIMIT} free messages. Upgrade to Premium for unlimited chat!`, 'info');
@@ -443,25 +656,35 @@ const MainApp: React.FC = () => {
     const handleOpenMonetizationModal = () => setIsMonetizationModalOpen(true);
     const handleCloseMonetizationModal = () => setIsMonetizationModalOpen(false);
     const handleUpgradeToPremium = async () => { 
-        if (currentUser) { 
-            // Verify payment was actually completed before granting premium
-            try {
-                const { verifyPremiumStatus } = await import('./services/api');
-                const isPremiumVerified = await verifyPremiumStatus(currentUserId);
-                
-                if (isPremiumVerified) {
-                    handleUpdateProfile({ ...currentUser, isPremium: true }); 
-                    handleCloseMonetizationModal(); 
-                    showToast('Congratulations! You are now a Create-A-Date Premium member.', 'success');
-                } else {
-                    showToast('Payment verification failed. Please contact support.', 'error');
-                }
-            } catch (error) {
-                showToast('Failed to verify premium status. Please try again.', 'error');
+        const currentUserId = getCurrentUserId();
+        if (!currentUser || !currentUserId) {
+            showToast('Please sign in to upgrade to Premium.', 'error');
+            return;
+        }
+        
+        // Verify payment was actually completed before granting premium
+        try {
+            const { verifyPremiumStatus } = await import('./services/api');
+            const isPremiumVerified = await verifyPremiumStatus(currentUserId);
+            
+            if (isPremiumVerified) {
+                handleUpdateProfile({ ...currentUser, isPremium: true }); 
+                handleCloseMonetizationModal(); 
+                showToast('Congratulations! You are now a Create-A-Date Premium member.', 'success');
+            } else {
+                showToast('Payment verification failed. Please contact support.', 'error');
             }
-        } 
+        } catch (error) {
+            showToast('Failed to verify premium status. Please try again.', 'error');
+        }
     };
     const handleOnboardingComplete = () => { localStorage.setItem('hasOnboarded', 'true'); setShowOnboarding(false); };
+    
+    const handleProfileSetupComplete = () => { 
+        localStorage.setItem('hasCompletedProfileSetup', 'true'); 
+        setShowProfileSetup(false);
+        showToast('Profile setup complete! You can now start swiping.', 'success');
+    };
 
     const handleSignOut = async () => { 
         await supabase.auth.signOut(); 
@@ -537,7 +760,7 @@ const MainApp: React.FC = () => {
                 }
                 return <MatchesView matchedUsers={matchedUsers} currentUser={currentUser!} onViewProfile={handleViewProfile} onPlanDate={handlePlanDate} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
              case View.Chat:
-                return <ChatView currentUser={currentUser!} matchedUsers={matchedUsers} allUsers={users} messages={messages} onSendMessage={handleSendMessage} onViewProfile={handleViewProfile} isChatDisabled={!currentUser?.isPremium && sentMessageCount >= FREE_MESSAGE_LIMIT} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
+                return <ChatView currentUser={currentUser!} matchedUsers={matchedUsers} allUsers={users} messages={userMessages} onSendMessage={handleSendMessage} onViewProfile={handleViewProfile} isChatDisabled={!currentUser?.isPremium && sentMessageCount >= FREE_MESSAGE_LIMIT} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
             case View.MyDates:
                 if (myDates.length === 0) {
                     return (
@@ -585,6 +808,27 @@ const MainApp: React.FC = () => {
              style={{ backgroundImage: appBackground ? `linear-gradient(rgba(18, 18, 18, 0.7), rgba(18, 18, 18, 0.7)), url(${appBackground})` : 'none', backgroundColor: '#121212' }}
         >
             {showOnboarding && <OnboardingGuide onFinish={handleOnboardingComplete} />}
+            {showProfileSetup && currentUser && (
+                <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-dark-1 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-dark-3 shadow-lg">
+                        <div className="p-6 border-b border-dark-3">
+                            <h2 className="text-2xl font-bold text-white">Complete Your Profile</h2>
+                            <p className="text-gray-400 mt-2">Let's set up your profile so you can start meeting amazing people!</p>
+                        </div>
+                        <div className="p-6">
+                            <ProfileSettings 
+                                currentUser={currentUser} 
+                                onSave={handleUpdateProfile} 
+                                onGetFeedback={() => {}}
+                                activeColorTheme={activeColorTheme}
+                                onSignOut={() => {}}
+                                onPremiumFeatureClick={handleOpenMonetizationModal}
+                                onSetAppBackground={handleSetAppBackground}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
             <Header currentView={currentView} setCurrentView={setCurrentView} activeColorTheme={activeColorTheme} />
             <main className="pt-28 pb-10 px-4 container mx-auto">
                 {renderView()}
@@ -593,7 +837,7 @@ const MainApp: React.FC = () => {
             {isIcebreakerModalOpen && <IcebreakerModal user={selectedUserForModal} onClose={handleCloseIcebreakers} gender={currentUser?.gender} onSendIcebreaker={(message) => { if(selectedUserForModal) { handleSendMessage(selectedUserForModal.id, message); handleCloseIcebreakers(); setCurrentView(View.Chat); } }} />}
             {isFeedbackModalOpen && <ProfileFeedbackModal user={currentUser!} onClose={handleCloseProfileFeedback} gender={currentUser?.gender}/>}
             {isDatePlannerModalOpen && <DatePlannerModal users={usersForDatePlanning} onClose={handleCloseDatePlanner} gender={currentUser?.gender}/>}
-            {isMonetizationModalOpen && <MonetizationModal onClose={handleCloseMonetizationModal} onUpgrade={handleUpgradeToPremium} currentUserId={currentUserId} />}
+            {isMonetizationModalOpen && <MonetizationModal onClose={handleCloseMonetizationModal} onUpgrade={handleUpgradeToPremium} currentUserId={getCurrentUserId() || ''} />}
         </div>
     );
 };

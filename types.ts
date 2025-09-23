@@ -1,3 +1,5 @@
+import React from 'react';
+
 export enum Gender {
   Male = 'male',
   Female = 'female',
@@ -11,7 +13,7 @@ export interface Badge {
 }
 
 export interface User {
-  id: number;
+  id: string; // Changed to string to match Supabase user IDs
   name: string;
   age: number;
   bio: string;
@@ -29,14 +31,14 @@ export interface User {
 export type DateCategory = 'Food & Drink' | 'Outdoors & Adventure' | 'Arts & Culture' | 'Nightlife' | 'Relaxing & Casual' | 'Active & Fitness' | 'Adult (18+)';
 
 export interface DatePost {
-  id: number;
+  id: string; // Changed to string to match string ID system
   title: string;
   description: string;
   location: string;
   dateTime: string;
-  createdBy: number;
-  applicants: number[];
-  chosenApplicantId: number | null;
+  createdBy: string; // Changed to string to match User.id
+  applicants: string[]; // Changed to string array
+  chosenApplicantId: string | null; // Changed to string
   categories: DateCategory[];
 }
 
@@ -52,9 +54,9 @@ export interface LocationSuggestion {
 }
 
 export interface Message {
-  id: number;
-  senderId: number;
-  receiverId: number;
+  id: string; // Changed to string to match string ID system
+  senderId: string; // Changed to string to match User.id
+  receiverId: string; // Changed to string to match User.id
   text: string;
   timestamp: string;
   read: boolean;

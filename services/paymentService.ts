@@ -20,8 +20,8 @@ export interface PaymentVerification {
 }
 
 export interface UserPayment {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string; // Changed to string to match User.id
   paypal_order_id: string;
   paypal_capture_id?: string;
   amount: string;
@@ -77,7 +77,7 @@ class PaymentService {
     });
   }
 
-  async getUserPayments(userId: number): Promise<{ payments: UserPayment[] }> {
+  async getUserPayments(userId: string): Promise<{ payments: UserPayment[] }> {
     return this.request('payments', {
       action: 'getUserPayments',
       payload: { userId }

@@ -7,10 +7,10 @@ export interface PremiumVerificationResult {
 }
 
 class PremiumVerificationService {
-  private verificationCache = new Map<number, PremiumVerificationResult>();
+  private verificationCache = new Map<string, PremiumVerificationResult>();
   private cacheExpiry = 5 * 60 * 1000; // 5 minutes
 
-  async verifyUserPremiumStatus(userId: number): Promise<boolean> {
+  async verifyUserPremiumStatus(userId: string): Promise<boolean> {
     try {
       // Check cache first
       const cached = this.verificationCache.get(userId);
@@ -40,13 +40,13 @@ class PremiumVerificationService {
     }
   }
 
-  async refreshVerification(userId: number): Promise<boolean> {
+  async refreshVerification(userId: string): Promise<boolean> {
     // Force refresh by clearing cache
     this.verificationCache.delete(userId);
     return this.verifyUserPremiumStatus(userId);
   }
 
-  clearCache(userId?: number) {
+  clearCache(userId?: string) {
     if (userId) {
       this.verificationCache.delete(userId);
     } else {
@@ -55,7 +55,7 @@ class PremiumVerificationService {
   }
 
   // Premium feature guard - use this before allowing premium features
-  async requirePremium(userId: number, featureName: string): Promise<void> {
+  async requirePremium(userId: string, featureName: string): Promise<void> {
     const isPremium = await this.verifyUserPremiumStatus(userId);
     if (!isPremium) {
       throw new Error(`Premium subscription required to access ${featureName}`);

@@ -53,7 +53,7 @@ async function tryDirectDatePosts(): Promise<DatePost[] | null> {
         const { data, error } = await supabase.from('date_posts').select('*').order('id', { ascending: false });
         if (error) return null;
         return (data || []).map((row: any) => ({
-            id: Number(row.id),
+            id: String(row.id), // Convert to string
             title: row.title,
             description: row.description,
             createdBy: row.created_by,
@@ -74,7 +74,7 @@ async function tryDirectMessages(): Promise<Message[] | null> {
         const { data, error } = await supabase.from('messages').select('*').order('id', { ascending: true });
         if (error) return null;
         return (data || []).map((row: any) => ({
-            id: Number(row.id),
+            id: String(row.id), // Convert to string
             senderId: row.sender_id,
             receiverId: row.receiver_id,
             text: row.text,
@@ -124,17 +124,17 @@ export const getMessages = async (): Promise<Message[]> => {
 
 export const createDate = (
     newDateData: Omit<DatePost, 'id' | 'createdBy' | 'applicants' | 'chosenApplicantId'>,
-    currentUserId: number
+    currentUserId: string
 ): Promise<DatePost> => call<DatePost>('createDate', { ...newDateData, createdBy: currentUserId });
 
 export const deleteDate = (id: number): Promise<{ ok: boolean }> => call('deleteDate', { id });
-export const chooseApplicant = (dateId: number, applicantId: number): Promise<DatePost> => call('chooseApplicant', { dateId, applicantId });
-export const toggleInterest = (dateId: number, userId: number): Promise<DatePost> => call('toggleInterest', { dateId, userId });
+export const chooseApplicant = (dateId: number, applicantId: string): Promise<DatePost> => call('chooseApplicant', { dateId, applicantId });
+export const toggleInterest = (dateId: number, userId: string): Promise<DatePost> => call('toggleInterest', { dateId, userId });
 export const updateUser = (user: User): Promise<{ ok: boolean }> => call('updateUser', user);
-export const sendMessage = (senderId: number, receiverId: number, text: string): Promise<Message> => call('sendMessage', { senderId, receiverId, text });
+export const sendMessage = (senderId: string, receiverId: string, text: string): Promise<Message> => call('sendMessage', { senderId, receiverId, text });
 
 // Premium verification function
-export const verifyPremiumStatus = async (userId: number): Promise<boolean> => {
+export const verifyPremiumStatus = async (userId: string): Promise<boolean> => {
     try {
         return await premiumVerificationService.verifyUserPremiumStatus(userId);
     } catch (error) {
@@ -144,6 +144,6 @@ export const verifyPremiumStatus = async (userId: number): Promise<boolean> => {
 };
 
 // Premium-gated API calls
-export const requirePremiumForFeature = async (userId: number, featureName: string): Promise<void> => {
+export const requirePremiumForFeature = async (userId: string, featureName: string): Promise<void> => {
     await premiumVerificationService.requirePremium(userId, featureName);
 };

@@ -57,7 +57,11 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                 onAuthSuccess();
             }
         } catch (error: any) {
-            setError(error.message);
+            if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                setError('🚨 Database connection failed. Please check that your Supabase project is active and not paused. Visit your Supabase dashboard to resume the project.');
+            } else {
+                setError(error.message);
+            }
         } finally {
             setLoading(false);
         }
@@ -76,7 +80,11 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
             if (error) throw error;
             onAuthSuccess();
         } catch (error: any) {
-            setError(error.message);
+            if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                setError('🚨 Database connection failed. Please check that your Supabase project is active and not paused. Visit your Supabase dashboard to resume the project.');
+            } else {
+                setError(error.message);
+            }
         } finally {
             setLoading(false);
         }
