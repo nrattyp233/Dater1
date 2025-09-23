@@ -4,6 +4,7 @@ import { CURRENT_USER_ID, colorThemes, ColorTheme, BADGES, WEEKLY_CHALLENGE_PROM
 import * as api from './services/api';
 import { categorizeDatePost } from './services/geminiService';
 import { useToast, ToastProvider } from './contexts/ToastContext';
+import { supabase } from './services/supabaseClient';
 
 import Header from './components/Header';
 import SwipeDeck from './components/SwipeDeck';
@@ -94,6 +95,7 @@ const OnboardingGuide: React.FC<{ onFinish: () => void }> = ({ onFinish }) => {
 
 const MainApp: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [authLoading, setAuthLoading] = useState(true);
     const [currentView, setCurrentView] = useState<View>(View.Swipe);
     const [users, setUsers] = useState<User[]>([]);
     const [datePosts, setDatePosts] = useState<DatePost[]>([]);
@@ -174,6 +176,31 @@ const MainApp: React.FC = () => {
             showToast('Payment verification failed. Please contact support.', 'error');
         }
     };
+
+    useEffect(() => {
+        // Check initial auth state
+        const checkAuth = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            setIsAuthenticated(!!session);
+            setAuthLoading(false);
+        };
+
+        checkAuth();
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            setIsAuthenticated(!!session);
+            setAuthLoading(false);
+            
+            if (event === 'SIGNED_IN') {
+                showToast('Welcome! You are now signed in.', 'success');
+            } else if (event === 'SIGNED_OUT') {
+                showToast("You've been signed out.", 'info');
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, [showToast]);
 
     useEffect(() => {
         if (isAuthenticated) {
@@ -436,7 +463,10 @@ const MainApp: React.FC = () => {
     };
     const handleOnboardingComplete = () => { localStorage.setItem('hasOnboarded', 'true'); setShowOnboarding(false); };
 
-    const handleSignOut = () => { setIsAuthenticated(false); setCurrentView(View.Swipe); showToast("You've been signed out.", "info"); };
+    const handleSignOut = async () => { 
+        await supabase.auth.signOut(); 
+        setCurrentView(View.Swipe); 
+    };
 
     const renderView = () => {
         if (!currentUser && isLoading) return <div className="text-center">Loading Create-A-Date...</div>;
@@ -530,6 +560,20 @@ const MainApp: React.FC = () => {
                 return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} weeklyChallenge={weeklyChallenge} onCompleteChallenge={handleCompleteChallenge}/>;
         }
     };
+
+    if (authLoading) {
+        return (
+            <div className="min-h-screen bg-dark-1 flex flex-col items-center justify-center p-4 font-sans">
+                <div className="text-center">
+                    <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 to-emerald-500 text-transparent bg-clip-text mb-2">
+                        Create-A-Date
+                    </h1>
+                    <p className="text-xl italic text-brand-light/90 tracking-wide mb-4">Beyond the swipe.</p>
+                    <div className="text-gray-400">Loading...</div>
+                </div>
+            </div>
+        );
+    }
 
     if (!isAuthenticated) {
         return <Auth onAuthSuccess={() => setIsAuthenticated(true)} />;
