@@ -109,7 +109,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     });
 
     const mapDatePost = (row: any) => ({
-      id: Number(row.id),
+      id: String(row.id), // Convert to string
       title: row.title,
       description: row.description,
       createdBy: row.created_by,
@@ -121,7 +121,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     });
 
     const mapMessage = (row: any) => ({
-      id: Number(row.id),
+      id: String(row.id), // Convert to string
       senderId: row.sender_id,
       receiverId: row.receiver_id,
       text: row.text,
@@ -216,11 +216,11 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
         // Seed users (id 1..5)
         const usersToInsert = [
-          { id: 1, name: 'Alex Jordan', age: 28, bio: "Software engineer who loves building amazing apps. Always up for a coffee chat about tech or life!", photos: ["https://picsum.photos/seed/alex1/400/600","https://picsum.photos/seed/alex2/400/600"], interests: ["Technology","Coffee","Fitness","Travel"], gender: 'male', is_premium: false, preferences: { interestedIn: ['female'], ageRange: { min: 24, max: 35 } }, earned_badge_ids: [] },
-          { id: 2, name: 'Maya Chen', age: 26, bio: 'UX designer passionate about creating beautiful experiences. Dog mom to a golden retriever named Pixel!', photos: ["https://picsum.photos/seed/maya1/400/600","https://picsum.photos/seed/maya2/400/600"], interests: ["Design","Dogs","Art","Hiking"], gender: 'female', is_premium: false, preferences: { interestedIn: ['male'], ageRange: { min: 25, max: 32 } }, earned_badge_ids: [] },
-          { id: 3, name: 'Jordan Rivera', age: 30, bio: 'Entrepreneur building the next big thing. Love adventure sports and trying new cuisines!', photos: ["https://picsum.photos/seed/jordan1/400/600","https://picsum.photos/seed/jordan2/400/600"], interests: ["Business","Adventure","Food","Networking"], gender: 'male', is_premium: false, preferences: { interestedIn: ['female'], ageRange: { min: 26, max: 34 } }, earned_badge_ids: [] },
-          { id: 4, name: 'Sophia Kim', age: 27, bio: 'Marketing manager by day, yoga instructor by evening. Always looking for the next great date idea!', photos: ["https://picsum.photos/seed/sophia1/400/600","https://picsum.photos/seed/sophia2/400/600"], interests: ["Marketing","Yoga","Wellness","Music"], gender: 'female', is_premium: false, preferences: { interestedIn: ['male'], ageRange: { min: 27, max: 35 } }, earned_badge_ids: [] },
-          { id: 5, name: 'Marcus Thompson', age: 29, bio: "Personal trainer who believes in living life to the fullest. Let's explore the city together!", photos: ["https://picsum.photos/seed/marcus1/400/600","https://picsum.photos/seed/marcus2/400/600"], interests: ["Fitness","Sports","Outdoors","Photography"], gender: 'male', is_premium: false, preferences: { interestedIn: ['female'], ageRange: { min: 24, max: 32 } }, earned_badge_ids: [] },
+          { id: '1', name: 'Alex Jordan', age: 28, bio: "Software engineer who loves building amazing apps. Always up for a coffee chat about tech or life!", photos: ["https://picsum.photos/seed/alex1/400/600","https://picsum.photos/seed/alex2/400/600"], interests: ["Technology","Coffee","Fitness","Travel"], gender: 'male', is_premium: false, preferences: { interestedIn: ['female'], ageRange: { min: 24, max: 35 } }, earned_badge_ids: [] },
+          { id: '2', name: 'Maya Chen', age: 26, bio: 'UX designer passionate about creating beautiful experiences. Dog mom to a golden retriever named Pixel!', photos: ["https://picsum.photos/seed/maya1/400/600","https://picsum.photos/seed/maya2/400/600"], interests: ["Design","Dogs","Art","Hiking"], gender: 'female', is_premium: false, preferences: { interestedIn: ['male'], ageRange: { min: 25, max: 32 } }, earned_badge_ids: [] },
+          { id: '3', name: 'Jordan Rivera', age: 30, bio: 'Entrepreneur building the next big thing. Love adventure sports and trying new cuisines!', photos: ["https://picsum.photos/seed/jordan1/400/600","https://picsum.photos/seed/jordan2/400/600"], interests: ["Business","Adventure","Food","Networking"], gender: 'male', is_premium: false, preferences: { interestedIn: ['female'], ageRange: { min: 26, max: 34 } }, earned_badge_ids: [] },
+          { id: '4', name: 'Sophia Kim', age: 27, bio: 'Marketing manager by day, yoga instructor by evening. Always looking for the next great date idea!', photos: ["https://picsum.photos/seed/sophia1/400/600","https://picsum.photos/seed/sophia2/400/600"], interests: ["Marketing","Yoga","Wellness","Music"], gender: 'female', is_premium: false, preferences: { interestedIn: ['male'], ageRange: { min: 27, max: 35 } }, earned_badge_ids: [] },
+          { id: '5', name: 'Marcus Thompson', age: 29, bio: "Personal trainer who believes in living life to the fullest. Let's explore the city together!", photos: ["https://picsum.photos/seed/marcus1/400/600","https://picsum.photos/seed/marcus2/400/600"], interests: ["Fitness","Sports","Outdoors","Photography"], gender: 'male', is_premium: false, preferences: { interestedIn: ['female'], ageRange: { min: 24, max: 32 } }, earned_badge_ids: [] },
         ];
 
         const { error: usersInsertErr } = await seedClient.from('users').upsert(usersToInsert, { onConflict: 'id' });
@@ -231,9 +231,9 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
         // Seed date posts
         const datePostsToInsert = [
-          { id: 1, title: 'Coffee & Code Chat', description: "Let's grab coffee and talk about our favorite projects! Perfect for fellow tech enthusiasts.", created_by: 1, location: 'Downtown Tech Cafe', date_time: '2024-12-30T15:00:00Z', applicants: [], chosen_applicant_id: null, categories: ['Food & Drink'] },
-          { id: 2, title: 'Sunset Yoga Session', description: 'Join me for a relaxing yoga session at the park as the sun sets. All levels welcome!', created_by: 4, location: 'Central Park Pavilion', date_time: '2024-12-28T17:30:00Z', applicants: [], chosen_applicant_id: null, categories: ['Active & Fitness', 'Relaxing & Casual'] },
-          { id: 3, title: 'Food Truck Adventure', description: "Let's explore the city's best food trucks and try something new! Perfect for foodies.", created_by: 3, location: 'Food Truck Plaza', date_time: '2024-12-29T12:00:00Z', applicants: [], chosen_applicant_id: null, categories: ['Food & Drink', 'Adventure'] },
+          { id: '1', title: 'Coffee & Code Chat', description: "Let's grab coffee and talk about our favorite projects! Perfect for fellow tech enthusiasts.", created_by: '1', location: 'Downtown Tech Cafe', date_time: '2024-12-30T15:00:00Z', applicants: [], chosen_applicant_id: null, categories: ['Food & Drink'] },
+          { id: '2', title: 'Sunset Yoga Session', description: 'Join me for a relaxing yoga session at the park as the sun sets. All levels welcome!', created_by: '4', location: 'Central Park Pavilion', date_time: '2024-12-28T17:30:00Z', applicants: [], chosen_applicant_id: null, categories: ['Active & Fitness', 'Relaxing & Casual'] },
+          { id: '3', title: 'Food Truck Adventure', description: "Let's explore the city's best food trucks and try something new! Perfect for foodies.", created_by: '3', location: 'Food Truck Plaza', date_time: '2024-12-29T12:00:00Z', applicants: [], chosen_applicant_id: null, categories: ['Food & Drink', 'Adventure'] },
         ];
         const { error: postsInsertErr } = await seedClient.from('date_posts').upsert(datePostsToInsert as any, { onConflict: 'id' });
         if (postsInsertErr) {
@@ -326,7 +326,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
           .eq('id', dateId)
           .single();
         
-        const applicants: number[] = current?.applicants ?? [];
+        const applicants: string[] = current?.applicants ?? []; // Changed to string array
         const exists = applicants.includes(userId);
         const next = exists ? applicants.filter((x) => x !== userId) : [...applicants, userId];
         
