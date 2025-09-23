@@ -811,9 +811,20 @@ const MainApp: React.FC = () => {
             {showProfileSetup && currentUser && (
                 <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-dark-1 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-dark-3 shadow-lg">
-                        <div className="p-6 border-b border-dark-3">
-                            <h2 className="text-2xl font-bold text-white">Complete Your Profile</h2>
-                            <p className="text-gray-400 mt-2">Let's set up your profile so you can start meeting amazing people!</p>
+                        <div className="p-6 border-b border-dark-3 flex justify-between items-center">
+                            <div>
+                                <h2 className="text-2xl font-bold text-white">Complete Your Profile</h2>
+                                <p className="text-gray-400 mt-2">Let's set up your profile so you can start meeting amazing people!</p>
+                            </div>
+                            <button 
+                                onClick={() => setShowProfileSetup(false)}
+                                className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-dark-3 transition-colors"
+                                aria-label="Skip profile setup"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
                         </div>
                         <div className="p-6">
                             <ProfileSettings 
