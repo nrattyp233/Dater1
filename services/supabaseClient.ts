@@ -19,32 +19,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     }
 });
 
-// Test connection function
-export const testSupabaseConnection = async () => {
-    try {
-        const { data, error } = await supabase.from('_health').select('*').limit(1);
-        if (error && error.message.includes('Failed to fetch')) {
-            throw new Error('Network error: Cannot connect to Supabase. The project might be paused or the URL might be incorrect.');
-        }
-        return { success: true, data };
-    } catch (error: any) {
-        console.error('Supabase connection test failed:', error);
-        return { success: false, error: error.message };
-    }
-};
-
 // Development mode warning
 if (isDevelopment) {
     console.warn('🚨 Development Mode: Using Supabase configuration from environment variables');
-    testSupabaseConnection().then(result => {
-        if (!result.success) {
-            console.error('❌ Supabase Connection Failed:', result.error);
-            console.log('💡 Possible solutions:');
-            console.log('1. Check if your Supabase project is active');
-            console.log('2. Verify the VITE_SUPABASE_URL in your .env file');
-            console.log('3. Check your internet connection');
-        } else {
-            console.log('✅ Supabase connection successful');
-        }
-    });
 }
