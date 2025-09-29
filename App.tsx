@@ -236,9 +236,10 @@ const MainApp: React.FC = () => {
             if (!hasOnboarded) {
                 setShowOnboarding(true);
             } else {
-                // Profile completion check - only after onboarding
+                // Profile completion check - only after onboarding or for new users
                 const hasCompletedProfileSetup = localStorage.getItem('hasCompletedProfileSetup');
-                if (!hasCompletedProfileSetup) {
+                const session = JSON.parse(localStorage.getItem('user_session') || '{}');
+                if (!hasCompletedProfileSetup || session.isNewUser) {
                     setShowProfileSetup(true);
                 }
             }

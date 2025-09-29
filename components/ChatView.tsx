@@ -10,7 +10,7 @@ interface ChatViewProps {
     matchedUsers: User[];
     allUsers: User[];
     messages: Message[];
-    onSendMessage: (receiverId: number, text: string) => void;
+    onSendMessage: (receiverId: string, text: string) => void;
     onViewProfile: (user: User) => void;
     isChatDisabled: boolean;
     activeColorTheme: ColorTheme;
@@ -28,7 +28,7 @@ const ChatView: React.FC<ChatViewProps> = ({
     activeColorTheme,
     onPremiumFeatureClick
 }) => {
-    const [activeChatUserId, setActiveChatUserId] = useState<number | null>(matchedUsers.length > 0 ? matchedUsers[0].id : null);
+    const [activeChatUserId, setActiveChatUserId] = useState<string | null>(matchedUsers.length > 0 ? matchedUsers[0].id : null);
     const [messageText, setMessageText] = useState('');
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);

@@ -195,7 +195,7 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, compatibility, isC
 interface SwipeDeckProps {
     users: User[];
     currentUser: User | undefined;
-    onSwipe: (userId: number, direction: 'left' | 'right') => void;
+    onSwipe: (userId: string, direction: 'left' | 'right') => void;
     onRecall: () => void;
     canRecall: boolean;
     isLoading: boolean;
@@ -240,7 +240,7 @@ const SwipeDeck: React.FC<SwipeDeckProps> = ({ users, currentUser, onSwipe, onRe
     }
   }, [topUser, currentUser]);
   
-  const handleSwipe = (userId: number, direction: 'left' | 'right') => {
+  const handleSwipe = (userId: string, direction: 'left' | 'right') => {
     onSwipe(userId, direction);
     setCompatibility(null);
     if (direction === 'right') {

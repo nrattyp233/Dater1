@@ -53,15 +53,15 @@ const ApplicantCard: React.FC<ApplicantCardProps> = ({ user, onChoose, isChosen,
 interface MyDatesManagerProps {
     myDates: DatePost[];
     allUsers: User[];
-    onChooseApplicant: (dateId: number, applicantId: number) => void;
-    onDeleteDate: (dateId: number) => void;
+    onChooseApplicant: (dateId: string, applicantId: string) => void;
+    onDeleteDate: (dateId: string) => void;
     gender?: Gender;
     onViewProfile: (user: User) => void;
     activeColorTheme: ColorTheme;
 }
 
 const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onChooseApplicant, onDeleteDate, gender, onViewProfile, activeColorTheme }) => {
-    const [selectedDateId, setSelectedDateId] = useState<number | null>(myDates.length > 0 ? myDates[0].id : null);
+    const [selectedDateId, setSelectedDateId] = useState<string | null>(myDates.length > 0 ? myDates[0].id : null);
 
     const selectedDate = myDates.find(d => d.id === selectedDateId);
     

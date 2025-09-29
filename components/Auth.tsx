@@ -29,16 +29,48 @@ export function Auth({ onSuccess }: AuthProps) {
         setLoading(true);
 
         try {
+            // Create user profile in JSONBin
+            const response = await fetch('/.netlify/functions/data-api', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'updateUser',
+                    payload: {
+                        id: email,
+                        name: email.split('@')[0],
+                        age: 25,
+                        bio: 'Hey there! I just joined Create-A-Date.',
+                        photos: [],
+                        interests: [],
+                        gender: 'male',
+                        isPremium: false,
+                        preferences: {
+                            interestedIn: ['female'],
+                            ageRange: { min: 18, max: 50 }
+                        }
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to create user profile');
+            }
+
             // Store user session in local storage
             const session = {
                 email,
+                name: email.split('@')[0],
                 createdAt: new Date().toISOString(),
+                isNewUser: true
             };
             localStorage.setItem('user_session', JSON.stringify(session));
             onSuccess();
         } catch (err) {
             console.error('Sign up error:', err);
-            setError('An unexpected error occurred');
+            localStorage.removeItem('user_session'); // Clean up if profile creation failed
+            setError('An error occurred during sign up. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -56,16 +88,37 @@ export function Auth({ onSuccess }: AuthProps) {
         setLoading(true);
 
         try {
+            // Fetch user profile from JSONBin
+            const response = await fetch('/.netlify/functions/data-api', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'getUser',
+                    payload: { id: email }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch user profile');
+            }
+
+            const userProfile = await response.json();
+
             // Store user session in local storage
             const session = {
                 email,
+                name: userProfile.name || email.split('@')[0],
                 createdAt: new Date().toISOString(),
+                isNewUser: false
             };
             localStorage.setItem('user_session', JSON.stringify(session));
             onSuccess();
         } catch (err) {
             console.error('Login error:', err);
-            setError('An unexpected error occurred');
+            localStorage.removeItem('user_session'); // Clean up if login failed
+            setError('Failed to login. Please check your credentials and try again.');
         } finally {
             setLoading(false);
         }
