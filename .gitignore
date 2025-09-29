@@ -27,3 +27,6 @@ dist-ssr
 # Netlify
 .netlify
 .env
+
+# Vercel
+.vercel
