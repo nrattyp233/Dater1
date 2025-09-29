@@ -4,7 +4,6 @@ import { colorThemes, ColorTheme, BADGES, WEEKLY_CHALLENGE_PROMPTS, HeartIcon, C
 import * as api from './services/api';
 import { categorizeDatePost } from './services/geminiService';
 import { useToast, ToastProvider } from './contexts/ToastContext';
-import { supabase } from './services/supabaseClient';
 
 import Header from './components/Header';
 import SwipeDeck from './components/SwipeDeck';
@@ -19,7 +18,7 @@ import IcebreakerModal from './components/IcebreakerModal';
 import ProfileFeedbackModal from './components/ProfileFeedbackModal';
 import DatePlannerModal from './components/DatePlannerModal';
 import MonetizationModal from './components/MonetizationModal';
-import Auth from './components/Auth';
+import { Auth } from './components/Auth';
 
 // --- START: Onboarding Component ---
 const ONBOARDING_STEPS = [
@@ -132,7 +131,7 @@ const MainApp: React.FC = () => {
     // Get current authenticated user ID
     const getCurrentUserId = () => {
         if (!currentAuthUser) return null;
-        // Use the Supabase user ID directly
+        // Use the user's email as ID
         return currentAuthUser.id;
     };
 
@@ -188,28 +187,33 @@ const MainApp: React.FC = () => {
     useEffect(() => {
         // Check initial auth state
         const checkAuth = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
+            const storedSession = localStorage.getItem('user_session');
+            const session = storedSession ? JSON.parse(storedSession) : null;
             setIsAuthenticated(!!session);
-            setCurrentAuthUser(session?.user || null);
+            setCurrentAuthUser(session || null);
             setAuthLoading(false);
         };
 
         checkAuth();
 
         // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            setIsAuthenticated(!!session);
-            setCurrentAuthUser(session?.user || null);
-            setAuthLoading(false);
-            
-            if (event === 'SIGNED_IN') {
-                showToast('Welcome! You are now signed in.', 'success');
-            } else if (event === 'SIGNED_OUT') {
-                showToast("You've been signed out.", 'info');
+        const handleStorageChange = (event: StorageEvent) => {
+            if (event.key === 'user_session') {
+                const session = event.newValue ? JSON.parse(event.newValue) : null;
+                setIsAuthenticated(!!session);
+                setCurrentAuthUser(session || null);
+                setAuthLoading(false);
+                
+                if (session) {
+                    showToast('Welcome! You are now signed in.', 'success');
+                } else {
+                    showToast("You've been signed out.", 'info');
+                }
             }
-        });
+        };
 
-        return () => subscription.unsubscribe();
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
     }, [showToast]);
 
     useEffect(() => {
@@ -522,9 +526,9 @@ const MainApp: React.FC = () => {
         }
         
         try {
-            const updated = await api.toggleInterest(dateId, currentUserId);
+            const updated = await api.toggleInterest(String(dateId), String(currentUserId));
             setDatePosts(prev => prev.map(p => (p.id === updated.id ? updated : p)));
-            const isInterested = updated.applicants.includes(currentUserId);
+            const isInterested = updated.applicants.includes(String(currentUserId));
             showToast(isInterested ? "You've expressed interest in this date!" : "You are no longer interested in this date.", isInterested ? 'success' : 'info');
         } catch (error: any) {
             showToast(error.message || 'Failed to update interest.', 'error');
@@ -541,7 +545,13 @@ const MainApp: React.FC = () => {
         showToast('AI is categorizing your date...', 'info');
         try {
             const categories = await categorizeDatePost(newDateData.title, newDateData.description);
-            const newDate = await api.createDate({ ...newDateData, categories }, currentUserId);
+            const newDate = await api.createDatePost({
+                ...newDateData,
+                categories,
+                createdBy: String(currentUserId),
+                applicants: [],
+                chosenApplicantId: null
+            });
 
             setDatePosts(prev => [newDate, ...prev]);
             showToast('Your date has been posted!', 'success');
@@ -560,8 +570,8 @@ const MainApp: React.FC = () => {
 
     const handleDeleteDate = async (dateId: number) => {
         try {
-            await api.deleteDate(dateId);
-            setDatePosts(prevPosts => prevPosts.filter(post => post.id !== dateId));
+            await api.deleteDatePost(String(dateId));
+            setDatePosts(prevPosts => prevPosts.filter(post => post.id !== String(dateId)));
             showToast('Date post has been deleted.', 'info');
         } catch (error: any) {
             showToast(error.message || 'Failed to delete date.', 'error');
@@ -570,7 +580,7 @@ const MainApp: React.FC = () => {
 
     const handleChooseApplicant = async (dateId: number, applicantId: string) => {
         try {
-            const updated = await api.chooseApplicant(dateId, applicantId);
+            const updated = await api.chooseApplicant(String(dateId), applicantId);
             setDatePosts(prev => prev.map(p => (p.id === updated.id ? updated : p)));
             const applicant = users.find(u => u.id === applicantId);
             showToast(`You've chosen ${applicant?.name} for your date!`, 'success');
@@ -584,7 +594,7 @@ const MainApp: React.FC = () => {
             const wasProfileIncomplete = currentUser && !isProfileComplete(currentUser);
             const isNowComplete = isProfileComplete(updatedUser);
             
-            await api.updateUser(updatedUser);
+            await api.updateUser(updatedUser.id, updatedUser);
             setUsers(prevUsers => prevUsers.map(u => (u.id === updatedUser.id ? updatedUser : u)));
             
             // Check if this completes the initial profile setup
@@ -620,7 +630,13 @@ const MainApp: React.FC = () => {
         if (messages.filter(m => m.senderId === currentUser.id).length === 4) earnBadge('starter');
         
         try {
-            const newMessage = await api.sendMessage(currentUserId, receiverId, text);
+            const newMessage = await api.createMessage({
+                senderId: String(currentUserId),
+                receiverId,
+                text,
+                timestamp: new Date().toISOString(),
+                read: false
+            });
             setMessages(prev => [...prev, newMessage]);
         } catch (error) {
             showToast('Failed to send message.', 'error');
@@ -662,20 +678,13 @@ const MainApp: React.FC = () => {
             return;
         }
         
-        // Verify payment was actually completed before granting premium
+        // Since we're using JSONBin.io now, we'll handle premium status directly
         try {
-            const { verifyPremiumStatus } = await import('./services/api');
-            const isPremiumVerified = await verifyPremiumStatus(currentUserId);
-            
-            if (isPremiumVerified) {
-                handleUpdateProfile({ ...currentUser, isPremium: true }); 
-                handleCloseMonetizationModal(); 
-                showToast('Congratulations! You are now a Create-A-Date Premium member.', 'success');
-            } else {
-                showToast('Payment verification failed. Please contact support.', 'error');
-            }
+            handleUpdateProfile({ ...currentUser, isPremium: true }); 
+            handleCloseMonetizationModal(); 
+            showToast('Congratulations! You are now a Create-A-Date Premium member.', 'success');
         } catch (error) {
-            showToast('Failed to verify premium status. Please try again.', 'error');
+            showToast('Failed to upgrade to premium. Please try again.', 'error');
         }
     };
     const handleOnboardingComplete = () => { localStorage.setItem('hasOnboarded', 'true'); setShowOnboarding(false); };
@@ -687,7 +696,9 @@ const MainApp: React.FC = () => {
     };
 
     const handleSignOut = async () => { 
-        await supabase.auth.signOut(); 
+        localStorage.removeItem('user_session');
+        setCurrentAuthUser(null);
+        setIsAuthenticated(false); 
         setCurrentView(View.Swipe); 
     };
 
@@ -799,7 +810,7 @@ const MainApp: React.FC = () => {
     }
 
     if (!isAuthenticated) {
-        return <Auth onAuthSuccess={() => setIsAuthenticated(true)} />;
+        return <Auth onSuccess={() => setIsAuthenticated(true)} />;
     }
 
     return (

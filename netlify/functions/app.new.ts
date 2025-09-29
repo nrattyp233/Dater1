@@ -1,5 +1,4 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
-import { Gender } from '../../types';
 import type { User, DatePost, Message } from '../../types';
 
 const JSONBIN_API_URL = 'https://api.jsonbin.io/v3/b';
@@ -89,18 +88,13 @@ async function seedData() {
     const sampleUsers: User[] = [
       {
         id: 'sample1@example.com',
+        email: 'sample1@example.com',
         name: 'Sample User 1',
-        age: 28,
         bio: 'I love trying new restaurants!',
-        photos: ['https://example.com/avatar1.jpg'],
         interests: ['food', 'travel'],
-        gender: Gender.Male,
+        avatar: 'https://example.com/avatar1.jpg',
         isPremium: false,
-        preferences: {
-          interestedIn: [Gender.Female],
-          ageRange: { min: 25, max: 35 }
-        },
-        earnedBadgeIds: []
+        createdAt: new Date().toISOString(),
       }
     ];
 
@@ -111,10 +105,11 @@ async function seedData() {
         description: 'Looking for someone to join me for dinner and a movie',
         createdBy: 'sample1@example.com',
         location: 'New York, NY',
-        dateTime: new Date().toISOString(),
+        budget: 100,
+        date: new Date().toISOString(),
+        status: 'open',
         applicants: [],
-        chosenApplicantId: null,
-        categories: ['Food & Drink', 'Relaxing & Casual'],
+        createdAt: new Date().toISOString(),
       }
     ];
 
@@ -213,7 +208,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
       switch (action) {
         case 'createDate': {
-          const { title, description, createdBy, location, dateTime, categories } = payload;
+          const { title, description, createdBy, location, date, budget } = payload;
           const dates = await jsonBinRequest<{ dates: DatePost[] }>(DATES_BIN_ID);
           const newDate: DatePost = {
             id: Date.now().toString(),
@@ -221,10 +216,11 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
             description,
             createdBy,
             location,
-            dateTime,
+            date,
+            budget,
+            status: 'open',
             applicants: [],
-            chosenApplicantId: null,
-            categories: categories || ['Food & Drink'],
+            createdAt: new Date().toISOString(),
           };
           await jsonBinRequest(DATES_BIN_ID, 'PUT', { 
             dates: [...(dates.dates || []), newDate]
