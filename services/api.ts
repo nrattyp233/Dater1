@@ -16,7 +16,18 @@ const generateId = (): string => {
 
 async function callJsonBin<T>(binId: string, method: 'GET' | 'PUT' | 'POST' = 'GET', body?: any): Promise<T> {
   try {
+    if (!MASTER_KEY) {
+      console.error('JSONBin master key is missing');
+      throw new Error('API configuration error: Missing master key');
+    }
+
+    if (!binId) {
+      console.error('JSONBin bin ID is missing');
+      throw new Error('API configuration error: Missing bin ID');
+    }
+
     const url = `${JSONBIN_API_URL}/${binId}`;
+    console.log(`Making ${method} request to ${url}`);
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -31,13 +42,17 @@ async function callJsonBin<T>(binId: string, method: 'GET' | 'PUT' | 'POST' = 'G
     });
 
     if (!response.ok) {
-      throw new Error(`JSONBin API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`JSONBin API error (${response.status}):`, errorText);
+      throw new Error(`JSONBin API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
+    console.log(`Successfully ${method} data from/to JSONBin:`, data);
     return method === 'GET' ? data : data.record;
   } catch (error) {
     console.error('JSONBin API call failed:', error);
+    console.error('Request details:', { url: `${JSONBIN_API_URL}/${binId}`, method, body });
     throw error;
   }
 }

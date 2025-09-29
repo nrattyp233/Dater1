@@ -142,13 +142,48 @@ const MainApp: React.FC = () => {
             const savedBackground = localStorage.getItem('appBackground');
             if (savedBackground) setAppBackground(savedBackground);
 
-            // Fetch data from API - production ready
-            const [fetchedUsers, fetchedDatePosts, fetchedMessages] = await Promise.all([
-                api.getUsers(), api.getDatePosts(), api.getMessages()
+            // Fetch data from API with individual error handling
+            const results = await Promise.allSettled([
+                api.getUsers(),
+                api.getDatePosts(),
+                api.getMessages()
             ]);
-            setUsers(fetchedUsers);
-            setDatePosts(fetchedDatePosts);
-            setMessages(fetchedMessages);
+
+            let hasError = false;
+
+            // Handle users
+            if (results[0].status === 'fulfilled') {
+                setUsers(results[0].value);
+                console.log('Successfully loaded users:', results[0].value);
+            } else {
+                console.error('Failed to load users:', results[0].reason);
+                showToast('Failed to load user data. Some features may be limited.', 'error');
+                hasError = true;
+            }
+
+            // Handle date posts
+            if (results[1].status === 'fulfilled') {
+                setDatePosts(results[1].value);
+                console.log('Successfully loaded date posts:', results[1].value);
+            } else {
+                console.error('Failed to load date posts:', results[1].reason);
+                showToast('Failed to load date posts. Some features may be limited.', 'error');
+                hasError = true;
+            }
+
+            // Handle messages
+            if (results[2].status === 'fulfilled') {
+                setMessages(results[2].value);
+                console.log('Successfully loaded messages:', results[2].value);
+            } else {
+                console.error('Failed to load messages:', results[2].reason);
+                showToast('Failed to load messages. Some features may be limited.', 'error');
+                hasError = true;
+            }
+
+            if (hasError) {
+                showToast('Some data failed to load. Please refresh to try again.', 'error');
+            }
         } catch (error) {
             console.error('Failed to load app data:', error);
             showToast('Failed to load app data. Please try again.', 'error');
@@ -569,7 +604,7 @@ const MainApp: React.FC = () => {
         }
     };
 
-    const handleDeleteDate = async (dateId: number) => {
+    const handleDeleteDate = async (dateId: string) => {
         try {
             await api.deleteDatePost(String(dateId));
             setDatePosts(prevPosts => prevPosts.filter(post => post.id !== String(dateId)));
@@ -579,7 +614,7 @@ const MainApp: React.FC = () => {
         }
     };
 
-    const handleChooseApplicant = async (dateId: number, applicantId: string) => {
+    const handleChooseApplicant = async (dateId: string, applicantId: string) => {
         try {
             const updated = await api.chooseApplicant(String(dateId), applicantId);
             setDatePosts(prev => prev.map(p => (p.id === updated.id ? updated : p)));
