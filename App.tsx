@@ -160,7 +160,7 @@ const MainApp: React.FC = () => {
     // Verify PayPal payment when user returns
     const verifyPayPalPayment = async (token: string, payerId: string) => {
         try {
-                const response = await fetch('/.netlify/functions/payments', {
+                const response = await fetch('/.netlify/functions/payment-service', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
