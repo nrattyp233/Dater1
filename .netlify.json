@@ -1,10 +1,11 @@
 {
   "name": "create-a-date-production",
   "database": {
-    "provider": "supabase",
+    "provider": "none",
     "disable_neon": true,
     "disable_planetscale": true,
-    "disable_turso": true
+    "disable_turso": true,
+    "disable_supabase": true
   },
   "deployment": {
     "framework": "vite",
