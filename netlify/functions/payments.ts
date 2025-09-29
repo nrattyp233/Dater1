@@ -1,9 +1,10 @@
 import { Handler } from '@netlify/functions';
-import { createClient } from '@supabase/supabase-js';
+import type { UserPayment } from '../../services/paymentService';
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const JSONBIN_API_URL = 'https://api.jsonbin.io/v3/b';
+const JSONBIN_MASTER_KEY = process.env.VITE_JSONBIN_MASTER_KEY!;
+const PAYMENTS_BIN_ID = process.env.VITE_PAYMENTS_BIN_ID!;
+const USERS_BIN_ID = process.env.VITE_USERS_BIN_ID!;
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -18,8 +19,29 @@ const PAYPAL_BASE_URL = process.env.NODE_ENV === 'production'
   ? 'https://api-m.paypal.com' 
   : 'https://api-m.sandbox.paypal.com';
 
+// Helper function to interact with JSONBin.io
+async function jsonBinRequest<T>(binId: string, method: 'GET' | 'PUT' = 'GET', body?: any): Promise<T> {
+  const url = `${JSONBIN_API_URL}/${binId}`;
+  const response = await fetch(url, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Master-Key': JSONBIN_MASTER_KEY,
+      'X-Bin-Meta': 'false'
+    },
+    ...(body ? { body: JSON.stringify(body) } : {})
+  });
+
+  if (!response.ok) {
+    throw new Error(`JSONBin API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return method === 'GET' ? data : data.record;
+}
+
 // Helper to get PayPal access token
-async function getPayPalAccessToken() {
+async function getPayPalAccessToken(): Promise<string> {
   const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
   
   const response = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
@@ -36,7 +58,7 @@ async function getPayPalAccessToken() {
 }
 
 // Create PayPal order
-async function createPayPalOrder(amount: string = '10.00') {
+async function createPayPalOrder(amount: string = '10.00'): Promise<any> {
   const accessToken = await getPayPalAccessToken();
   
   const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders`, {
@@ -51,23 +73,20 @@ async function createPayPalOrder(amount: string = '10.00') {
         amount: {
           currency_code: 'USD',
           value: amount
-        },
-        description: 'Create-A-Date Premium Subscription'
+        }
       }],
       application_context: {
         return_url: `${process.env.URL || 'https://create-a-date.netlify.app'}`,
-        cancel_url: `${process.env.URL || 'https://create-a-date.netlify.app'}`,
-        brand_name: 'Create-A-Date',
-        user_action: 'PAY_NOW'
+        cancel_url: `${process.env.URL || 'https://create-a-date.netlify.app'}`
       }
-    })
+    }),
   });
 
-  return await response.json();
+  return response.json();
 }
 
 // Capture PayPal payment
-async function capturePayPalPayment(orderId: string) {
+async function capturePayment(orderId: string): Promise<any> {
   const accessToken = await getPayPalAccessToken();
   
   const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderId}/capture`, {
@@ -78,184 +97,114 @@ async function capturePayPalPayment(orderId: string) {
     },
   });
 
-  return await response.json();
-}
-
-// Verify PayPal payment
-async function verifyPayPalPayment(orderId: string) {
-  const accessToken = await getPayPalAccessToken();
-  
-  const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderId}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  return await response.json();
+  return response.json();
 }
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers };
-  }
-
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' }),
-    };
+    return { statusCode: 204, headers };
   }
 
   try {
-    const { action, payload } = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
-    
-    if (!action) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Missing action' }),
-      };
-    }
+    const { action, userId, orderId, amount } = JSON.parse(event.body || '{}');
 
     switch (action) {
-      case 'createOrder': {
-        const { userId } = payload;
-        
-        if (!userId) {
+      case 'create-order': {
+        const order = await createPayPalOrder(amount);
+        if (order.id) {
+          // Store payment record in JSONBin
+          const { payments = [] } = await jsonBinRequest<{ payments: UserPayment[] }>(PAYMENTS_BIN_ID);
+          const newPayment: UserPayment = {
+            id: Date.now().toString(),
+            user_id: userId,
+            paypal_order_id: order.id,
+            amount,
+            status: 'pending',
+            created_at: new Date().toISOString()
+          };
+
+          await jsonBinRequest(PAYMENTS_BIN_ID, 'PUT', { 
+            payments: [...payments, newPayment] 
+          });
+
           return {
-            statusCode: 400,
+            statusCode: 200,
             headers,
-            body: JSON.stringify({ error: 'Missing userId' }),
+            body: JSON.stringify(order)
+          };
+        }
+        throw new Error('Failed to create PayPal order');
+      }
+
+      case 'capture-payment': {
+        const captureData = await capturePayment(orderId);
+        if (captureData.status === 'COMPLETED') {
+          // Update payment record
+          const { payments = [] } = await jsonBinRequest<{ payments: UserPayment[] }>(PAYMENTS_BIN_ID);
+          const paymentIndex = payments.findIndex(p => p.paypal_order_id === orderId);
+          
+          if (paymentIndex >= 0) {
+            payments[paymentIndex] = {
+              ...payments[paymentIndex],
+              status: 'completed',
+              paypal_capture_id: captureData.purchase_units[0].payments.captures[0].id,
+              completed_at: new Date().toISOString()
+            };
+
+            await jsonBinRequest(PAYMENTS_BIN_ID, 'PUT', { payments });
+
+            // Update user's premium status
+            const { users = [] } = await jsonBinRequest<{ users: any[] }>(USERS_BIN_ID);
+            const userIndex = users.findIndex(u => u.id === userId);
+            
+            if (userIndex >= 0) {
+              users[userIndex] = {
+                ...users[userIndex],
+                isPremium: true
+              };
+
+              await jsonBinRequest(USERS_BIN_ID, 'PUT', { users });
+            }
+          }
+
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(captureData)
+          };
+        }
+        throw new Error('Payment capture failed');
+      }
+
+      case 'verify-payment': {
+        // Get payment record
+        const { payments = [] } = await jsonBinRequest<{ payments: UserPayment[] }>(PAYMENTS_BIN_ID);
+        const payment = payments.find(p => p.paypal_order_id === orderId);
+
+        if (payment?.status === 'completed') {
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ verified: true, payment })
           };
         }
 
-        const order = await createPayPalOrder();
-        
-        if (order.id) {
-          // Store pending payment in database
-          await supabase.from('payments').insert({
-            user_id: userId,
-            paypal_order_id: order.id,
-            amount: '10.00',
-            status: 'pending',
-            created_at: new Date().toISOString()
-          });
-        }
-        
         return {
           statusCode: 200,
           headers,
-          body: JSON.stringify({ orderId: order.id, links: order.links }),
+          body: JSON.stringify({ verified: false })
         };
       }
 
-      case 'captureOrder': {
-        const { orderId, userId } = payload;
-        
-        if (!orderId || !userId) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'Missing orderId or userId' }),
-          };
-        }
-
-        // Capture the payment
-        const captureResult = await capturePayPalPayment(orderId);
-        
-        if (captureResult.status === 'COMPLETED') {
-          // Update payment status in database
-          await supabase.from('payments').update({
-            status: 'completed',
-            paypal_capture_id: captureResult.id,
-            completed_at: new Date().toISOString()
-          }).eq('paypal_order_id', orderId);
-
-          // Grant premium access to user
-          await supabase.from('users').update({
-            is_premium: true,
-            premium_activated_at: new Date().toISOString()
-          }).eq('id', userId);
-
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({ 
-              success: true, 
-              message: 'Payment completed and premium access granted',
-              captureId: captureResult.id 
-            }),
-          };
-        } else {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'Payment capture failed', details: captureResult }),
-          };
-        }
-      }
-
-      case 'verifyPayment': {
-        const { orderId, userId } = payload;
-        
-        if (!orderId || !userId) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'Missing orderId or userId' }),
-          };
-        }
-
-        // Verify payment with PayPal
-        const paymentDetails = await verifyPayPalPayment(orderId);
-        
-        // Check our database
-        const { data: payment } = await supabase
-          .from('payments')
-          .select('*')
-          .eq('paypal_order_id', orderId)
-          .eq('user_id', userId)
-          .single();
-
-        if (payment && payment.status === 'completed' && paymentDetails.status === 'COMPLETED') {
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({ verified: true, payment }),
-          };
-        } else {
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({ verified: false }),
-          };
-        }
-      }
-
-      case 'getUserPayments': {
-        const { userId } = payload;
-        
-        if (!userId) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'Missing userId' }),
-          };
-        }
-
-        const { data: payments } = await supabase
-          .from('payments')
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false });
+      case 'get-user-payments': {
+        // Get all payments for user
+        const { payments = [] } = await jsonBinRequest<{ payments: UserPayment[] }>(PAYMENTS_BIN_ID);
+        const userPayments = payments.filter(p => p.user_id === userId);
 
         return {
           statusCode: 200,
           headers,
-          body: JSON.stringify({ payments }),
+          body: JSON.stringify(userPayments)
         };
       }
 
@@ -263,15 +212,15 @@ export const handler: Handler = async (event) => {
         return {
           statusCode: 400,
           headers,
-          body: JSON.stringify({ error: 'Invalid action' }),
+          body: JSON.stringify({ error: 'Invalid action' })
         };
     }
-  } catch (error: any) {
-    console.error('Payment API error:', error);
+  } catch (error) {
+    console.error('Payment processing error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Internal server error', details: error.message }),
+      body: JSON.stringify({ error: 'Payment processing failed' })
     };
   }
 };

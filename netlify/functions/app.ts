@@ -1,18 +1,10 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
-import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client (anon)
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_ANON_KEY!
-);
-
-// Create an admin client if a service role key is provided
-const getAdminClient = () => {
-  const url = process.env.SUPABASE_URL!;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey) return null;
-  return createClient(url, serviceKey);
+const headers = {
+  'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
+  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Content-Type': 'application/json'
 };
 
 async function ensureSchema() {
