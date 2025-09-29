@@ -1,6 +1,7 @@
 [build]
   publish = "dist"
   command = "npm run build"
+  runtime = "nodejs20.x"
 
 [functions]
   directory = "netlify/functions"
