@@ -2,11 +2,7 @@ import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { Gender } from '../../types';
 import type { User, DatePost, Message } from '../../types';
 
-const JSONBIN_API_URL = 'https://api.jsonbin.io/v3/b';
-const JSONBIN_MASTER_KEY = process.env.VITE_JSONBIN_MASTER_KEY!;
-const USERS_BIN_ID = process.env.VITE_USERS_BIN_ID!;
-const DATES_BIN_ID = process.env.VITE_DATES_BIN_ID!;
-const MESSAGES_BIN_ID = process.env.VITE_MESSAGES_BIN_ID!;
+const DATABASE_URL = process.env.DATABASE_URL!;
 
 const headers = {
   'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
@@ -15,24 +11,24 @@ const headers = {
   'Content-Type': 'application/json'
 };
 
-async function jsonBinRequest<T>(binId: string, method: 'GET' | 'PUT' = 'GET', body?: any): Promise<T> {
-  const url = `${JSONBIN_API_URL}/${binId}`;
-  const response = await fetch(url, {
-    method,
+async function query(sql: string, params: any[] = []): Promise<any> {
+  const response = await fetch(DATABASE_URL, {
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Master-Key': JSONBIN_MASTER_KEY,
-      'X-Bin-Meta': 'false'
     },
-    ...(body ? { body: JSON.stringify(body) } : {})
+    body: JSON.stringify({
+      query: sql,
+      params: params
+    })
   });
 
   if (!response.ok) {
-    throw new Error(`JSONBin API error: ${response.status}`);
+    throw new Error(`Database error: ${response.status}`);
   }
 
   const data = await response.json();
-  return method === 'GET' ? data : data.record;
+  return data.rows || [];
 }
 
 async function getHealthCheck() {
