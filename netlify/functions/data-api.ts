@@ -11,53 +11,55 @@ const headers = {
   'Content-Type': 'application/json'
 };
 
-async function query(sql: string, params: any[] = []): Promise<any> {
-  const response = await fetch(DATABASE_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      query: sql,
-      params: params
-    })
-  });
+// Simple database query function for Neon
+async function dbQuery(sql: string, params: any[] = []): Promise<any[]> {
+  try {
+    // For Neon, we can use a simple HTTP API approach
+    const response = await fetch(`${DATABASE_URL}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.NEON_API_KEY || ''}`,
+      },
+      body: JSON.stringify({
+        query: sql,
+        params: params
+      })
+    });
 
-  if (!response.ok) {
-    throw new Error(`Database error: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Database query failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.rows || [];
+  } catch (error) {
+    console.error('Database query error:', error);
+    throw error;
   }
-
-  const data = await response.json();
-  return data.rows || [];
 }
 
 async function getHealthCheck() {
   try {
-    // Check JSONBin.io connectivity and bins existence
     const results: any = {
       env: {
-        jsonbinMasterKey: !!JSONBIN_MASTER_KEY,
-        usersBinId: !!USERS_BIN_ID,
-        datesBinId: !!DATES_BIN_ID,
-        messagesBinId: !!MESSAGES_BIN_ID,
+        databaseUrl: !!DATABASE_URL,
       }
     };
 
     try {
-      // Test connection to each bin
-      const [users, dates, messages] = await Promise.all([
-        jsonBinRequest<{ users: User[] }>(USERS_BIN_ID),
-        jsonBinRequest<{ dates: DatePost[] }>(DATES_BIN_ID),
-        jsonBinRequest<{ messages: Message[] }>(MESSAGES_BIN_ID),
-      ]);
+      // Test database connection
+      const users = await dbQuery('SELECT COUNT(*) as count FROM users');
+      const dates = await dbQuery('SELECT COUNT(*) as count FROM date_posts');
+      const messages = await dbQuery('SELECT COUNT(*) as count FROM messages');
 
-      results.usersCount = (users.users || []).length;
-      results.datesCount = (dates.dates || []).length;
-      results.messagesCount = (messages.messages || []).length;
-      results.jsonbinReachable = true;
+      results.usersCount = users[0]?.count || 0;
+      results.datesCount = dates[0]?.count || 0;
+      results.messagesCount = messages[0]?.count || 0;
+      results.databaseReachable = true;
     } catch (e: any) {
-      results.jsonbinReachable = false;
-      results.jsonbinError = e?.message || 'unknown';
+      results.databaseReachable = false;
+      results.databaseError = e?.message || 'unknown';
     }
 
     return results;
@@ -67,71 +69,6 @@ async function getHealthCheck() {
       error: 'Failed to complete health check',
       details: error instanceof Error ? error.message : 'Unknown error'
     };
-  }
-}
-
-async function seedData() {
-  try {
-    // Only seed if bins are empty
-    const [currentUsers] = await Promise.all([
-      jsonBinRequest<{ users: User[] }>(USERS_BIN_ID),
-    ]);
-
-    if ((currentUsers.users || []).length > 0) {
-      return { message: 'Data already exists, skipping seed' };
-    }
-
-    // Sample seed data
-    const sampleUsers: User[] = [
-      {
-        id: 'sample1@example.com',
-        name: 'Sample User 1',
-        age: 28,
-        bio: 'I love trying new restaurants!',
-        photos: ['https://example.com/avatar1.jpg'],
-        interests: ['food', 'travel'],
-        gender: Gender.Male,
-        isPremium: false,
-        preferences: {
-          interestedIn: [Gender.Female],
-          ageRange: { min: 25, max: 35 }
-        },
-        earnedBadgeIds: []
-      }
-    ];
-
-    const sampleDates: DatePost[] = [
-      {
-        id: 'date1',
-        title: 'Dinner and Movie',
-        description: 'Looking for someone to join me for dinner and a movie',
-        createdBy: 'sample1@example.com',
-        location: 'New York, NY',
-        dateTime: new Date().toISOString(),
-        applicants: [],
-        chosenApplicantId: null,
-        categories: ['Food & Drink', 'Relaxing & Casual'],
-      }
-    ];
-
-    // Update the bins with seed data
-    await Promise.all([
-      jsonBinRequest(USERS_BIN_ID, 'PUT', { users: sampleUsers }),
-      jsonBinRequest(DATES_BIN_ID, 'PUT', { dates: sampleDates }),
-      jsonBinRequest(MESSAGES_BIN_ID, 'PUT', { messages: [] }),
-    ]);
-
-    return {
-      message: 'Seed data created successfully',
-      stats: {
-        users: sampleUsers.length,
-        dates: sampleDates.length,
-        messages: 0,
-      }
-    };
-  } catch (error) {
-    console.error('Error seeding data:', error);
-    throw error;
   }
 }
 
@@ -156,48 +93,42 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
         };
       }
 
-      if (event.path.includes('/seed')) {
-        const seedToken = event.headers['x-seed-token'];
-        if (seedToken !== process.env.SEED_TOKEN) {
-          return {
-            statusCode: 403,
-            headers,
-            body: JSON.stringify({ error: 'Invalid seed token' })
-          };
-        }
-
-        const result = await seedData();
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify(result)
-        };
-      }
-
       const action = event.path.split('/').pop();
       switch (action) {
         case 'users': {
-          const users = await jsonBinRequest<{ users: User[] }>(USERS_BIN_ID);
+          const users = await dbQuery(`
+            SELECT id, name, age, bio, photos, interests, gender, is_premium, preferences, earned_badge_ids
+            FROM users 
+            ORDER BY created_at DESC
+          `);
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(users.users || [])
+            body: JSON.stringify(users)
           };
         }
         case 'dates': {
-          const dates = await jsonBinRequest<{ dates: DatePost[] }>(DATES_BIN_ID);
+          const dates = await dbQuery(`
+            SELECT id, title, description, created_by, location, date_time, applicants, chosen_applicant_id, categories
+            FROM date_posts 
+            ORDER BY created_at DESC
+          `);
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(dates.dates || [])
+            body: JSON.stringify(dates)
           };
         }
         case 'messages': {
-          const messages = await jsonBinRequest<{ messages: Message[] }>(MESSAGES_BIN_ID);
+          const messages = await dbQuery(`
+            SELECT id, sender_id, receiver_id, text, timestamp, read
+            FROM messages 
+            ORDER BY timestamp DESC
+          `);
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(messages.messages || [])
+            body: JSON.stringify(messages)
           };
         }
       }
@@ -210,173 +141,70 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
       switch (action) {
         case 'createDate': {
           const { title, description, createdBy, location, dateTime, categories } = payload;
-          const dates = await jsonBinRequest<{ dates: DatePost[] }>(DATES_BIN_ID);
-          const newDate: DatePost = {
-            id: Date.now().toString(),
-            title,
-            description,
-            createdBy,
-            location,
-            dateTime,
-            applicants: [],
-            chosenApplicantId: null,
-            categories: categories || ['Food & Drink'],
-          };
-          await jsonBinRequest(DATES_BIN_ID, 'PUT', { 
-            dates: [...(dates.dates || []), newDate]
-          });
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(newDate)
-          };
-        }
-
-        case 'chooseApplicant': {
-          const { dateId, applicantId } = payload;
-          const dates = await jsonBinRequest<{ dates: DatePost[] }>(DATES_BIN_ID);
-          const updatedDates = (dates.dates || []).map(date => 
-            date.id === dateId 
-              ? { ...date, chosenApplicant: applicantId, status: 'matched' }
-              : date
-          );
-          await jsonBinRequest(DATES_BIN_ID, 'PUT', { dates: updatedDates });
-          
-          // Create initial message
-          const messages = await jsonBinRequest<{ messages: Message[] }>(MESSAGES_BIN_ID);
-          const datePost = updatedDates.find(d => d.id === dateId)!;
-          const newMessage = {
-            id: Date.now().toString(),
-            senderId: datePost.createdBy,
-            recipientId: applicantId,
-            content: 'Hey! I chose you for my date plan! Let\'s discuss the details.',
-            datePostId: dateId,
-            createdAt: new Date().toISOString()
-          };
-          await jsonBinRequest(MESSAGES_BIN_ID, 'PUT', {
-            messages: [...(messages.messages || []), newMessage]
-          });
-
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(datePost)
-          };
-        }
-
-        case 'toggleInterest': {
-          const { dateId, userId } = payload;
-          const dates = await jsonBinRequest<{ dates: DatePost[] }>(DATES_BIN_ID);
-          const datePost = (dates.dates || []).find(d => d.id === dateId);
-          
-          if (!datePost) {
-            return {
-              statusCode: 404,
-              headers,
-              body: JSON.stringify({ error: 'Date post not found' })
-            };
-          }
-
-          const applicants = datePost.applicants || [];
-          const exists = applicants.includes(userId);
-          const updatedApplicants = exists 
-            ? applicants.filter(id => id !== userId)
-            : [...applicants, userId];
-
-          const updatedDates = (dates.dates || []).map(date =>
-            date.id === dateId
-              ? { ...date, applicants: updatedApplicants }
-              : date
-          );
-
-          await jsonBinRequest(DATES_BIN_ID, 'PUT', { dates: updatedDates });
+          const result = await dbQuery(`
+            INSERT INTO date_posts (title, description, created_by, location, date_time, categories)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+          `, [title, description, createdBy, location, dateTime, JSON.stringify(categories)]);
           
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(updatedDates.find(d => d.id === dateId))
+            body: JSON.stringify(result[0])
           };
         }
-
-        case 'updateUser': {
-          const userData = payload;
-          const users = await jsonBinRequest<{ users: User[] }>(USERS_BIN_ID);
-          const updatedUsers = (users.users || []).map(user =>
-            user.id === userData.id ? { ...user, ...userData } : user
-          );
-
-          if (!updatedUsers.find(u => u.id === userData.id)) {
-            updatedUsers.push(userData);
-          }
-
-          await jsonBinRequest(USERS_BIN_ID, 'PUT', { users: updatedUsers });
+        case 'createUser': {
+          const { id, name, age, bio, photos, interests, gender, preferences } = payload;
+          const result = await dbQuery(`
+            INSERT INTO users (id, name, age, bio, photos, interests, gender, preferences)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (id) DO UPDATE SET
+              name = EXCLUDED.name,
+              age = EXCLUDED.age,
+              bio = EXCLUDED.bio,
+              photos = EXCLUDED.photos,
+              interests = EXCLUDED.interests,
+              gender = EXCLUDED.gender,
+              preferences = EXCLUDED.preferences,
+              updated_at = NOW()
+            RETURNING *
+          `, [id, name, age, bio, JSON.stringify(photos), JSON.stringify(interests), gender, JSON.stringify(preferences)]);
           
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify({ ok: true })
+            body: JSON.stringify(result[0])
           };
         }
-
         case 'sendMessage': {
-          const { senderId, recipientId, content, datePostId } = payload;
-          const messages = await jsonBinRequest<{ messages: Message[] }>(MESSAGES_BIN_ID);
-          const newMessage = {
-            id: Date.now().toString(),
-            senderId,
-            recipientId,
-            content,
-            datePostId,
-            createdAt: new Date().toISOString()
-          };
-
-          await jsonBinRequest(MESSAGES_BIN_ID, 'PUT', {
-            messages: [...(messages.messages || []), newMessage]
-          });
-
+          const { senderId, receiverId, text, timestamp } = payload;
+          const result = await dbQuery(`
+            INSERT INTO messages (sender_id, receiver_id, text, timestamp)
+            VALUES ($1, $2, $3, $4)
+            RETURNING *
+          `, [senderId, receiverId, text, timestamp]);
+          
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(newMessage)
+            body: JSON.stringify(result[0])
           };
         }
-
-        default:
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: `Unknown action: ${action}` })
-          };
-      }
-    }
-
-    // Handle DELETE requests
-    if (event.httpMethod === 'DELETE') {
-      if (event.path.includes('/dates/')) {
-        const dateId = event.path.split('/').pop();
-        const dates = await jsonBinRequest<{ dates: DatePost[] }>(DATES_BIN_ID);
-        const updatedDates = (dates.dates || []).filter(date => date.id !== dateId);
-        await jsonBinRequest(DATES_BIN_ID, 'PUT', { dates: updatedDates });
-        
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ ok: true })
-        };
       }
     }
 
     return {
-      statusCode: 400,
+      statusCode: 404,
       headers,
-      body: JSON.stringify({ error: 'Invalid request' })
+      body: JSON.stringify({ error: 'Not found' })
     };
+
   } catch (error) {
-    console.error('Error handling request:', error);
+    console.error('API Error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({
+      body: JSON.stringify({ 
         error: 'Internal server error',
         details: error instanceof Error ? error.message : 'Unknown error'
       })
