@@ -1,13 +1,15 @@
 import { Handler } from '@netlify/functions';
+import postgres from 'postgres';
 import type { UserPayment } from '../../services/paymentService';
 
-const JSONBIN_API_URL = 'https://api.jsonbin.io/v3/b';
-const JSONBIN_MASTER_KEY = process.env.VITE_JSONBIN_MASTER_KEY!;
-const PAYMENTS_BIN_ID = process.env.VITE_PAYMENTS_BIN_ID!;
-const USERS_BIN_ID = process.env.VITE_USERS_BIN_ID!;
+// Connect to the database
+const sql = postgres(process.env.NEON_DATABASE_URL || '', {
+    ssl: 'require',
+});
 
+// Secure CORS headers
 const headers = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'https://create-a-date.netlify.app',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Content-Type': 'application/json',
@@ -18,27 +20,6 @@ const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
 const PAYPAL_BASE_URL = process.env.NODE_ENV === 'production' 
   ? 'https://api-m.paypal.com' 
   : 'https://api-m.sandbox.paypal.com';
-
-// Helper function to interact with JSONBin.io
-async function jsonBinRequest<T>(binId: string, method: 'GET' | 'PUT' = 'GET', body?: any): Promise<T> {
-  const url = `${JSONBIN_API_URL}/${binId}`;
-  const response = await fetch(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Master-Key': JSONBIN_MASTER_KEY,
-      'X-Bin-Meta': 'false'
-    },
-    ...(body ? { body: JSON.stringify(body) } : {})
-  });
-
-  if (!response.ok) {
-    throw new Error(`JSONBin API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return method === 'GET' ? data : data.record;
-}
 
 // Helper to get PayPal access token
 async function getPayPalAccessToken(): Promise<string> {
@@ -108,84 +89,91 @@ export const handler: Handler = async (event) => {
   try {
     const { action, userId, orderId, amount } = JSON.parse(event.body || '{}');
 
+    // Input validation
+    if (!action) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Action is required' })
+      };
+    }
+
     switch (action) {
       case 'create-order': {
-        const order = await createPayPalOrder(amount);
+        if (!userId) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'userId is required' })
+          };
+        }
+
+        const order = await createPayPalOrder(amount || '10.00');
         if (order.id) {
-          // Store payment record in JSONBin
-          const { payments = [] } = await jsonBinRequest<{ payments: UserPayment[] }>(PAYMENTS_BIN_ID);
-          const newPayment: UserPayment = {
-            id: Date.now().toString(),
+          // Store payment record in NeonDB
+          const newPayment = {
             user_id: userId,
             paypal_order_id: order.id,
-            amount,
+            amount: parseFloat(amount || '10.00'),
             status: 'pending',
-            created_at: new Date().toISOString()
           };
 
-          await jsonBinRequest(PAYMENTS_BIN_ID, 'PUT', { 
-            payments: [...payments, newPayment] 
-          });
+          await sql`INSERT INTO payments ${sql(newPayment)}`;
 
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(order)
+            body: JSON.stringify({ orderId: order.id, links: order.links })
           };
         }
         throw new Error('Failed to create PayPal order');
       }
 
       case 'capture-payment': {
+        if (!orderId || !userId) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'orderId and userId are required' })
+          };
+        }
+
         const captureData = await capturePayment(orderId);
         if (captureData.status === 'COMPLETED') {
-          // Update payment record
-          const { payments = [] } = await jsonBinRequest<{ payments: UserPayment[] }>(PAYMENTS_BIN_ID);
-          const paymentIndex = payments.findIndex(p => p.paypal_order_id === orderId);
+          // Update payment record in NeonDB
+          const captureId = captureData.purchase_units[0].payments.captures[0].id;
           
-          if (paymentIndex >= 0) {
-            payments[paymentIndex] = {
-              ...payments[paymentIndex],
-              status: 'completed',
-              paypal_capture_id: captureData.purchase_units[0].payments.captures[0].id,
-              completed_at: new Date().toISOString()
-            };
+          await sql`UPDATE payments SET status = 'completed', paypal_capture_id = ${captureId}, completed_at = NOW() WHERE paypal_order_id = ${orderId}`;
 
-            await jsonBinRequest(PAYMENTS_BIN_ID, 'PUT', { payments });
-
-            // Update user's premium status
-            const { users = [] } = await jsonBinRequest<{ users: any[] }>(USERS_BIN_ID);
-            const userIndex = users.findIndex(u => u.id === userId);
-            
-            if (userIndex >= 0) {
-              users[userIndex] = {
-                ...users[userIndex],
-                isPremium: true
-              };
-
-              await jsonBinRequest(USERS_BIN_ID, 'PUT', { users });
-            }
-          }
+          // Update user's premium status
+          await sql`UPDATE users SET is_premium = true, premium_activated_at = NOW() WHERE id = ${userId}`;
 
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(captureData)
+            body: JSON.stringify({ success: true, message: 'Payment completed', captureId })
           };
         }
         throw new Error('Payment capture failed');
       }
 
       case 'verify-payment': {
-        // Get payment record
-        const { payments = [] } = await jsonBinRequest<{ payments: UserPayment[] }>(PAYMENTS_BIN_ID);
-        const payment = payments.find(p => p.paypal_order_id === orderId);
+        if (!orderId) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'orderId is required' })
+          };
+        }
 
-        if (payment?.status === 'completed') {
+        // Get payment record from NeonDB
+        const payment = await sql`SELECT * FROM payments WHERE paypal_order_id = ${orderId}`;
+
+        if (payment.length > 0 && payment[0].status === 'completed') {
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify({ verified: true, payment })
+            body: JSON.stringify({ verified: true, payment: payment[0] })
           };
         }
 
@@ -197,14 +185,21 @@ export const handler: Handler = async (event) => {
       }
 
       case 'get-user-payments': {
-        // Get all payments for user
-        const { payments = [] } = await jsonBinRequest<{ payments: UserPayment[] }>(PAYMENTS_BIN_ID);
-        const userPayments = payments.filter(p => p.user_id === userId);
+        if (!userId) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'userId is required' })
+          };
+        }
+
+        // Get all payments for user from NeonDB
+        const payments = await sql`SELECT * FROM payments WHERE user_id = ${userId} ORDER BY created_at DESC`;
 
         return {
           statusCode: 200,
           headers,
-          body: JSON.stringify(userPayments)
+          body: JSON.stringify({ payments })
         };
       }
 
@@ -220,7 +215,7 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Payment processing failed' })
+      body: JSON.stringify({ error: error.message || 'Payment processing failed' })
     };
   }
 };

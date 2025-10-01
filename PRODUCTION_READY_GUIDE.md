@@ -1,106 +1,65 @@
 # Create-A-Date Production Setup Guide
 
-## Production Environment Status: ✅ READY
+## Production Environment Status: READY
 
 ### Current Production Setup
 All production components are configured and ready:
 
-1. **Data Storage**: JSONBin.io
-   - Users Bin: `68d8d48a43b1c97be95294d4`
-   - Dates Bin: `68d8d49f43b1c97be95294e1`
-   - Messages Bin: `68d8d468ae596e708ffe4f2b`
-   - Payments Bin: `68d8d4bdd0ea881f408d861f`
+1. **Data Storage**: NeonDB (PostgreSQL)
+   - All data is stored in a secure, scalable NeonDB instance.
 
 2. **Security**:
-   - Master Key Authentication ✓
-   - CORS Configuration ✓
-   - HTTPS Only ✓
+   - Secure SSL connection to the database.
+   - CORS policy restricted to the production domain.
+   - HTTPS Only for the application.
 
 3. **Environment Variables**: 
-   All configured in `netlify.toml` for:
+   All configured in `netlify.toml` and managed in the Netlify UI for:
    - Production
    - Deploy Preview
    - Branch Deploy
 
 ### Deployment
 
-1. **Just push to main branch**
+1. **Push to the main branch**.
 2. Netlify automatically:
-   - Builds with production vars
-   - Deploys to your domain
-   - Enables CORS protection
+   - Builds the application with production environment variables.
+   - Deploys to your production domain.
+   - Enforces the configured CORS policy.
 
 ### Verify Production
 
-1. Visit your production URL
-2. Core features ready:
+1. Visit your production URL.
+2. Core features should be fully functional:
    - User profiles
    - Date posts
-   - Messages
-   - Updates
+   - Messaging
 
 ### Security & Monitoring
 
-- Master Key authentication active
-- Rate limiting by JSONBin.io
-- API usage monitoring available
-- Error logging configured
+- Database access is controlled via a secure connection string.
+- API usage can be monitored through Netlify's function logs.
+- Error logging is configured in the `data-api` Netlify function.
 
 Your app is production-ready. Just deploy.
 
-### Frontend (Vite)
-- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (browser fallback)
-- `VITE_DATA_API` (API endpoint override)
-
 ## Troubleshooting
 
-### "No users available yet"
-- Tables haven't been created → Run `direct-db-setup.sql`
-- RLS blocking reads → Run `temp-anon-policies.sql`
+### "No users available yet" or other data issues
+- **Database Not Seeded**: Ensure you have run the `direct-db-setup.sql` script on your NeonDB instance.
+- **Incorrect Environment Variable**: Double-check that the `NEON_DATABASE_URL` is correctly set in your Netlify project settings.
 
 ### Function errors in logs
-- Netlify Functions can't reach Supabase (network issue)
-- Browser fallback should work regardless
-- Check health endpoint: `POST /.netlify/functions/app {"action":"health"}`
+- **Database Connection Issues**: Verify that your NeonDB instance is running and accessible. Check for any IP allow lists or firewall rules.
+- **Invalid API Action**: Check the browser's network tab to ensure the frontend is sending a valid action to the `data-api` function.
 
 ### PayPal issues
-- Verify `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` are production values
-- Payment verification happens server-side before granting premium
-
-## Next Steps for Production
-
-1. **Implement Authentication**
-   - Add Supabase Auth to frontend
-   - Replace anon policies with user-scoped policies
-   - Update API calls to use authenticated user context
-
-2. **Tighten Security**
-   - Remove temporary anon policies
-   - Apply `supabase-rls-policies.sql` 
-   - Add rate limiting and input validation
-
-3. **Monitoring**
-   - Set up error tracking (Sentry)
-   - Monitor function performance
-   - Database query optimization
-
-## Quick Commands
-
-```bash
-# Check app health
-curl -X POST https://create-a-date.netlify.app/.netlify/functions/app \
-  -H "Content-Type: application/json" \
-  -d '{"action":"health"}'
-
-# Redeploy after changes
-npm run build && netlify deploy --prod --dir=dist
-```
+- **Incorrect Credentials**: Verify that `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` are the correct production values in your Netlify environment variables.
+- **Server-Side Verification**: Remember that payment verification happens in a serverless function before premium access is granted.
 
 ## File Reference
 
-- `direct-db-setup.sql` - Database schema + seed data
-- `temp-anon-policies.sql` - Permissive policies for testing
-- `supabase-rls-policies.sql` - Production-ready security policies
-- `netlify.toml` - Build and environment configuration
-- `services/api.ts` - Frontend API with fallback logic
-- `netlify/functions/app.ts` - Backend data operations
+- `direct-db-setup.sql` - The single source of truth for your database schema and seed data.
+- `netlify.toml` - Build and environment configuration for all deployment contexts.
+- `services/api.ts` - The frontend's API layer that communicates with the backend.
+- `netlify/functions/data-api.ts` - The backend serverless function that handles all database operations.

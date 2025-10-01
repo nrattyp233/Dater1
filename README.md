@@ -21,78 +21,44 @@ View your app in AI Studio: https://ai.studio/apps/drive/1gH2LdLDqrcGIgEOUAXHZm_
 
 ## Production Deploy (Netlify)
 
-This app is configured to run on Netlify with Supabase as the database. Gemini calls are proxied via Netlify Functions to protect your API key.
+This app is configured to run on Netlify with NeonDB as the database. All backend logic, including Gemini AI calls, is handled by Netlify Functions to protect your API keys.
 
-1) **Set up Supabase database:**
-   - Go to https://supabase.com/ and create a new project
-   - In the SQL Editor, run the following to create your tables:
-   ```sql
-   -- Create users table
-   CREATE TABLE users (
-     id INTEGER PRIMARY KEY,
-     name TEXT,
-     age INTEGER,
-     bio TEXT,
-     photos JSONB,
-     interests JSONB,
-     gender TEXT,
-     is_premium BOOLEAN,
-     preferences JSONB,
-     earned_badge_ids JSONB
-   );
+1) **Set up Neon Database:**
+   - Go to https://neon.tech/ and create a new project.
+   - Find your database connection string in the project dashboard.
+   - Connect to your database using a SQL client (e.g., DBeaver, TablePlus, or `psql`).
+   - Execute the entire script from `direct-db-setup.sql` to create and seed your tables.
 
-   -- Create date_posts table
-   CREATE TABLE date_posts (
-     id BIGSERIAL PRIMARY KEY,
-     title TEXT,
-     description TEXT,
-     created_by INTEGER REFERENCES users(id),
-     location TEXT,
-     date_time TEXT,
-     applicants JSONB,
-     chosen_applicant_id INTEGER,
-     categories JSONB
-   );
-
-   -- Create messages table
-   CREATE TABLE messages (
-     id BIGSERIAL PRIMARY KEY,
-     sender_id INTEGER REFERENCES users(id),
-     receiver_id INTEGER REFERENCES users(id),
-     text TEXT,
-     timestamp TEXT,
-     read BOOLEAN
-   );
-   ```
-
-2) **Set environment variables in Netlify Site Settings → Environment Variables:**
-   - `SUPABASE_URL` → your Supabase project URL (found in Settings → API)
-   - `SUPABASE_ANON_KEY` → your Supabase anon/public key (found in Settings → API)
-   - `GEMINI_API_KEY` → your Google AI Studio key
-   - `PAYPAL_CLIENT_ID` → your PayPal app client ID
-   - `PAYPAL_CLIENT_SECRET` → your PayPal app client secret
-   - `REACT_APP_PAYPAL_CLIENT_ID` → your PayPal app client ID (for frontend)
+2) **Set Environment Variables in Netlify:**
+   In your Netlify site settings (under "Site configuration" > "Environment variables"), add the following:
+   - `NEON_DATABASE_URL`: Your full Neon database connection string.
+   - `GEMINI_API_KEY`: Your Google AI Studio API key.
+   - `PAYPAL_CLIENT_ID`: Your PayPal app client ID.
+   - `PAYPAL_CLIENT_SECRET`: Your PayPal app client secret.
+   - `REACT_APP_PAYPAL_CLIENT_ID`: Your PayPal app client ID (this is used by the frontend).
 
    **PayPal Setup:**
-   - Create a PayPal developer account at https://developer.paypal.com/
-   - Create a new app in the PayPal developer dashboard
-   - Use sandbox credentials for testing, live credentials for production
-   - Copy the Client ID and Client Secret to your environment variables
+   - Create a PayPal developer account at https://developer.paypal.com/.
+   - Create a new app in the PayPal developer dashboard to get your Client ID and Secret.
+   - Use sandbox credentials for testing and live credentials for production.
 
-3) **Set up database with payments support:**
-   - Use the enhanced SQL script in `supabase-setup.sql` which includes payments table
-   - This creates proper payment tracking and premium verification
+3) **Deploy:**
+   - Connect your GitHub repository to a new site in Netlify.
+   - Netlify will automatically use the build command (`npm run build`) and publish directory (`dist`) from your `netlify.toml` file.
+   - After a successful build, your site will be live!
 
-4) **Deploy:**
-   - Push to GitHub and connect your repo in Netlify
-   - Netlify will serve static assets from `dist/` and the API from `netlify/functions/`
-   - Make sure to set the build command to `npm run build` and publish directory to `dist`
-
-5) **Local development with Netlify CLI:**
+4) **Local Development with Netlify CLI:**
+   To run the full stack locally, including the Netlify functions:
    ```bash
+   # Install dependencies
    npm install
+   
+   # Install Netlify CLI globally (if you haven't already)
    npm install -g netlify-cli
+   
+   # Run the development server
    netlify dev
    ```
+   You will need to create a `.env` file in the root of your project and add your environment variables there for local development.
 
-Note: Client uses `fetch('/api/ai')` for AI endpoints; no API key is exposed in the browser.
+Note: The client communicates with the backend via a relative path (`/api/...`), which is redirected to the appropriate Netlify function. No API keys are exposed in the browser.

@@ -1,49 +1,44 @@
-const { createClient } = require('@supabase/supabase-js');
+const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+// Check for the Neon database connection string
+const connectionString = process.env.NEON_DATABASE_URL;
+if (!connectionString) {
+  console.error('❌ Error: NEON_DATABASE_URL environment variable is not set.');
+  console.error('Please create a .env file and add your Neon database connection string.');
+  process.exit(1);
+}
+
+// Configure the connection pool
+const pool = new Pool({
+  connectionString,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+});
 
 async function setupDatabase() {
-  console.log('🚀 Setting up production database...');
-  
+  console.log('🚀 Setting up the database...');
+
   try {
-    // Drop existing tables
-    console.log('Dropping existing tables...');
-    await supabase.rpc('exec_sql', { sql: 'DROP TABLE IF EXISTS payments CASCADE;' });
-    await supabase.rpc('exec_sql', { sql: 'DROP TABLE IF EXISTS messages CASCADE;' });
-    await supabase.rpc('exec_sql', { sql: 'DROP TABLE IF EXISTS date_posts CASCADE;' });
-    await supabase.rpc('exec_sql', { sql: 'DROP TABLE IF EXISTS users CASCADE;' });
+    // Read the SQL setup file
+    const sqlFilePath = path.join(__dirname, 'direct-db-setup.sql');
+    const sqlScript = fs.readFileSync(sqlFilePath, 'utf8');
+
+    console.log('Executing SQL script from direct-db-setup.sql...');
     
-    // Create users table
-    console.log('Creating users table...');
-    await supabase.rpc('exec_sql', { 
-      sql: `CREATE TABLE users (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        age INTEGER,
-        bio TEXT,
-        photos JSONB DEFAULT '[]'::jsonb,
-        interests JSONB DEFAULT '[]'::jsonb,
-        gender TEXT,
-        is_premium BOOLEAN DEFAULT false,
-        preferences JSONB DEFAULT '{}'::jsonb,
-        earned_badge_ids JSONB DEFAULT '[]'::jsonb,
-        premium_activated_at TIMESTAMP WITH TIME ZONE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      );` 
-    });
-    
-    // Create other tables...
-    console.log('Creating other tables...');
-    // Continue with other tables and data...
-    
-    console.log('✅ Database setup complete!');
+    // Execute the entire script
+    await pool.query(sqlScript);
+
+    console.log('✅ Database setup completed successfully!');
   } catch (error) {
     console.error('❌ Database setup failed:', error);
+  } finally {
+    // End the pool connection
+    await pool.end();
+    console.log('Database connection closed.');
   }
 }
 
