@@ -9,6 +9,11 @@
 [dev]
   framework = "#vite"
 
+[context.local.environment]
+  NODE_VERSION = "20"
+  NEON_DATABASE_URL = "postgresql://neondb_owner:npg_zFjkDQH19SRO@ep-super-shape-aevu6wd2-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+  GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
+
 [context.production.environment]
   NODE_VERSION = "20"
   NEON_DATABASE_URL = "postgresql://neondb_owner:npg_zFjkDQH19SRO@ep-super-shape-aevu6wd2-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
