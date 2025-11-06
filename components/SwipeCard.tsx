@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { User } from '../types';
-import { SparklesIcon } from '../constants';
+import { SparklesIcon, CheckCircleIcon } from '../constants';
 import { SkeletonLoader } from './SkeletonLoader';
 
 interface SwipeCardProps {
@@ -112,7 +112,10 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, compatibility, isC
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
         <div className="absolute bottom-0 left-0 p-6 text-white w-full pointer-events-none">
-          <h2 className="text-3xl font-bold">{user.name}, {user.age}</h2>
+          <h2 className="text-3xl font-bold flex items-center gap-2">
+            <span>{user.name}, {user.age}</span>
+            {user.isVerified && <CheckCircleIcon className="w-7 h-7 text-blue-400" />}
+          </h2>
           
            {(isVibeLoading || profileVibe) && (
              <div className="mt-2 min-h-[24px]">
@@ -164,3 +167,5 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, compatibility, isC
     </div>
   );
 };
+
+export default SwipeCard;

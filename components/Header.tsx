@@ -1,6 +1,7 @@
 import React from 'react';
 import { View } from '../types';
-import { HeartIcon, UserIcon, CalendarIcon, PlusIcon, CogIcon, ChatIcon, ColorTheme } from '../constants';
+import { HeartIcon, UserIcon, CalendarIcon, PlusIcon, CogIcon, ChatIcon, BuildingIcon, TrophyIcon } from '../constants';
+import type { ColorTheme } from '../constants';
 
 interface HeaderProps {
   currentView: View;
@@ -8,7 +9,17 @@ interface HeaderProps {
   activeColorTheme: ColorTheme;
 }
 
-const NavButton = ({ isActive, onClick, children, ariaLabel, activeColor, activeGlow }: { isActive: boolean; onClick: () => void; children: React.ReactNode; ariaLabel: string, activeColor: string, activeGlow: string }) => (
+// FIX: Extracted NavButton props to a separate interface for better type safety and to resolve potential type inference issues.
+interface NavButtonProps {
+  isActive: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  ariaLabel: string;
+  activeColor: string;
+  activeGlow: string;
+}
+
+const NavButton: React.FC<NavButtonProps> = ({ isActive, onClick, children, ariaLabel, activeColor, activeGlow }) => (
   <button
     onClick={onClick}
     aria-label={ariaLabel}
@@ -35,11 +46,17 @@ const Header: React.FC<HeaderProps> = ({ currentView, setCurrentView, activeColo
           <NavButton isActive={currentView === View.Create} onClick={() => setCurrentView(View.Create)} ariaLabel="Create a date" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
             <PlusIcon className="w-6 h-6" />
           </NavButton>
+           <NavButton isActive={currentView === View.Leaderboard} onClick={() => setCurrentView(View.Leaderboard)} ariaLabel="Leaderboard" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
+            <TrophyIcon className="w-6 h-6" />
+          </NavButton>
           <NavButton isActive={currentView === View.Chat} onClick={() => setCurrentView(View.Chat)} ariaLabel="My chats" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
             <ChatIcon className="w-6 h-6" />
           </NavButton>
           <NavButton isActive={currentView === View.MyDates} onClick={() => setCurrentView(View.MyDates)} ariaLabel="My dates" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
             <UserIcon className="w-6 h-6" />
+          </NavButton>
+           <NavButton isActive={currentView === View.BusinessSignup} onClick={() => setCurrentView(View.BusinessSignup)} ariaLabel="For Businesses" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
+            <BuildingIcon className="w-6 h-6" />
           </NavButton>
            <NavButton isActive={currentView === View.Profile} onClick={() => setCurrentView(View.Profile)} ariaLabel="Profile settings" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
             <CogIcon className="w-6 h-6" />

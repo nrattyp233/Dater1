@@ -6,27 +6,17 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "netlify:dev": "netlify dev",
-    "start": "vite"
+    "preview": "vite preview"
   },
   "dependencies": {
+    "react-dom": "^19.1.1",
     "@google/genai": "^1.12.0",
-    "@paypal/paypal-js": "^8.4.2",
-    "@paypal/react-paypal-js": "^8.9.1",
-    "@types/pg": "^8.15.5",
-    "pg": "^8.16.3",
-    "postgres": "^3.4.7",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "@supabase/supabase-js": "^2.44.4"
   },
   "devDependencies": {
-    "@netlify/functions": "^4.2.6",
-    "@types/node": "^22.18.6",
-    "@types/react": "^19.0.0",
-    "@vitejs/plugin-react": "^5.0.4",
-    "dotenv": "^17.2.3",
-    "netlify-cli": "^18.0.0",
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

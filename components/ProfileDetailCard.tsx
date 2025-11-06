@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { User } from '../types';
 import { BadgeDisplay } from './ProfileSettings';
+import { CheckCircleIcon } from '../constants';
 
 interface ProfileDetailCardProps {
   user: User;
@@ -51,7 +52,10 @@ const ProfileDetailCard: React.FC<ProfileDetailCardProps> = ({ user }) => {
       
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none rounded-2xl" />
       <div className="absolute bottom-0 left-0 p-6 text-white w-full">
-        <h2 className="text-3xl font-bold">{user.name}, {user.age}</h2>
+        <h2 className="text-3xl font-bold flex items-center gap-2">
+            <span>{user.name}, {user.age}</span>
+            {user.isVerified && <CheckCircleIcon className="w-7 h-7 text-blue-400" />}
+        </h2>
         <p className="mt-2 text-light-2">{user.bio}</p>
         <div className="mt-4 flex flex-wrap gap-2">
           {user.interests.map(interest => (

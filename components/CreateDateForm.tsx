@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { DatePost, User, Gender, LocationSuggestion } from '../types';
+import React, { useState, useEffect } from 'react';
+import { DatePost, User, Gender, LocationSuggestion, LocalEvent, Business, Deal } from '../types';
 import { generateFullDateIdea, enhanceDateDescription, suggestLocations } from '../services/geminiService';
 import { SparklesIcon, CrownIcon, MapPinIcon } from '../constants';
 import { useToast } from '../contexts/ToastContext';
@@ -11,14 +11,21 @@ interface CreateDateFormProps {
     currentUser: User;
     activeColorTheme: ColorTheme;
     onPremiumFeatureClick: () => void;
+    eventForDate: LocalEvent | null;
+    onClearEventForDate: () => void;
+    businessForDate: { business: Business, deal?: Deal } | null;
+    onClearBusinessForDate: () => void;
 }
 
-const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUser, activeColorTheme, onPremiumFeatureClick }) => {
+const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUser, activeColorTheme, onPremiumFeatureClick, eventForDate, onClearEventForDate, businessForDate, onClearBusinessForDate }) => {
     const [title, setTitle] = useState('');
     const [idea, setIdea] = useState('');
     const [description, setDescription] = useState('');
     const [location, setLocation] = useState('');
     const [dateTime, setDateTime] = useState('');
+    const [linkedBusinessId, setLinkedBusinessId] = useState<number | undefined>();
+    const [linkedDealId, setLinkedDealId] = useState<number | undefined>();
+
     const [isGenerating, setIsGenerating] = useState(false);
     const [isGeneratingFull, setIsGeneratingFull] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -37,16 +44,41 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUs
     const primaryGlow = isMaleTheme ? 'hover:shadow-glow-green' : 'hover:shadow-glow-pink';
     const focusRingClass = isMaleTheme ? 'focus:ring-lime-500 focus:border-lime-500' : 'focus:ring-brand-pink focus:border-brand-pink';
 
+    useEffect(() => {
+        if (eventForDate) {
+            setTitle(eventForDate.title);
+            const prefilledDescription = `Let's check out the "${eventForDate.title}" event! ${eventForDate.description}`;
+            setDescription(prefilledDescription);
+            setLocation(eventForDate.location);
+            setIdea('');
+            setLinkedBusinessId(undefined);
+            setLinkedDealId(undefined);
+            onClearEventForDate();
+        }
+    }, [eventForDate, onClearEventForDate]);
+
+    useEffect(() => {
+        if (businessForDate) {
+            const { business, deal } = businessForDate;
+            setTitle(`Date Night at ${business.name}`);
+            let desc = `Let's have a date at ${business.name}! ${business.description}`;
+            if (deal) {
+                desc += `\n\nWe can even use their special offer: ${deal.title}! (${deal.description})`;
+            }
+            setDescription(desc);
+            setLocation(business.address);
+            setLinkedBusinessId(business.id);
+            setLinkedDealId(deal?.id);
+            setIdea('');
+            onClearBusinessForDate();
+        }
+    }, [businessForDate, onClearBusinessForDate]);
+
     const handleGenerateFullDate = async () => {
-        try {
-            // Verify premium status before allowing AI generation
-            const { requirePremiumForFeature } = await import('../services/api');
-            await requirePremiumForFeature(currentUser.id, 'AI Date Generation');
-        } catch (error) {
+        if (!currentUser.isPremium) {
             onPremiumFeatureClick();
             return;
         }
-        
         setIsGeneratingFull(true);
         try {
             const { title, description, location } = await generateFullDateIdea(currentUser);
@@ -85,11 +117,7 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUs
             return;
         }
 
-        try {
-            // Verify premium status before allowing location suggestions
-            const { requirePremiumForFeature } = await import('../services/api');
-            await requirePremiumForFeature(currentUser.id, 'AI Location Suggestions');
-        } catch (error) {
+        if (!currentUser.isPremium) {
             onPremiumFeatureClick();
             return;
         }
@@ -118,12 +146,14 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUs
             return;
         }
         setIsSubmitting(true);
-        await onCreateDate({ title, description, location, dateTime });
+        await onCreateDate({ title, description, location, dateTime, businessId: linkedBusinessId, dealId: linkedDealId });
         setTitle('');
         setIdea('');
         setDescription('');
         setLocation('');
         setDateTime('');
+        setLinkedBusinessId(undefined);
+        setLinkedDealId(undefined);
         setIsSubmitting(false);
     };
 

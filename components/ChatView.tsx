@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { User, Message, Gender } from '../types';
 import type { ColorTheme } from '../constants';
-import { CrownIcon, SparklesIcon, BrainIcon } from '../constants';
-import { generateChatReplies, getWingmanTip } from '../services/geminiService';
+import { CrownIcon, SparklesIcon, BrainIcon, LightbulbIcon } from '../constants';
+import { generateChatReplies, getWingmanTip, generatePickupLines } from '../services/geminiService';
 import { useToast } from '../contexts/ToastContext';
 
 interface ChatViewProps {
@@ -10,7 +10,7 @@ interface ChatViewProps {
     matchedUsers: User[];
     allUsers: User[];
     messages: Message[];
-    onSendMessage: (receiverId: string, text: string) => void;
+    onSendMessage: (receiverId: number, text: string) => void;
     onViewProfile: (user: User) => void;
     isChatDisabled: boolean;
     activeColorTheme: ColorTheme;
@@ -28,7 +28,7 @@ const ChatView: React.FC<ChatViewProps> = ({
     activeColorTheme,
     onPremiumFeatureClick
 }) => {
-    const [activeChatUserId, setActiveChatUserId] = useState<string | null>(matchedUsers.length > 0 ? matchedUsers[0].id : null);
+    const [activeChatUserId, setActiveChatUserId] = useState<number | null>(matchedUsers.length > 0 ? matchedUsers[0].id : null);
     const [messageText, setMessageText] = useState('');
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
@@ -122,22 +122,36 @@ const ChatView: React.FC<ChatViewProps> = ({
         }
     };
     
+    const handleGeneratePickupLines = async () => {
+        if (!activeChatUser) return;
+        if (!currentUser.isPremium) {
+            onPremiumFeatureClick();
+            return;
+        }
+        setIsGeneratingSuggestions(true);
+        setSuggestions([]);
+        try {
+            const lines = await generatePickupLines(currentUser, activeChatUser);
+            setSuggestions(lines);
+        } catch (error: any) {
+            showToast(error.message || "Failed to get pickup lines.", 'error');
+        } finally {
+            setIsGeneratingSuggestions(false);
+        }
+    };
+
     const handleSuggestionClick = (suggestion: string) => {
         setMessageText(suggestion);
         setSuggestions([]);
     };
 
-    const handleWingmanToggle = async () => {
-        try {
-            // Verify premium status before allowing wingman
-            const { requirePremiumForFeature } = await import('../services/api');
-            await requirePremiumForFeature(currentUser.id, 'AI Wingman');
-            
-            setIsWingmanOn(prev => !prev);
-            setWingmanTip(null); // Clear tip on toggle
-        } catch (error) {
+    const handleWingmanToggle = () => {
+        if (!currentUser.isPremium) {
             onPremiumFeatureClick();
+            return;
         }
+        setIsWingmanOn(prev => !prev);
+        setWingmanTip(null); // Clear tip on toggle
     };
 
     return (
@@ -237,9 +251,23 @@ const ChatView: React.FC<ChatViewProps> = ({
                                         value={messageText}
                                         onChange={(e) => setMessageText(e.target.value)}
                                         placeholder={isChatDisabled ? "Upgrade to send messages" : "Type a message..."}
-                                        className="w-full bg-dark-3 border border-dark-3 rounded-lg p-3 pr-12 text-white focus:ring-2 focus:ring-brand-pink focus:border-brand-pink transition disabled:opacity-50"
+                                        className="w-full bg-dark-3 border border-dark-3 rounded-lg p-3 pr-24 text-white focus:ring-2 focus:ring-brand-pink focus:border-brand-pink transition disabled:opacity-50"
                                         disabled={isChatDisabled}
                                     />
+                                    <button 
+                                        type="button" 
+                                        onClick={handleGeneratePickupLines}
+                                        disabled={isChatDisabled || isGeneratingSuggestions}
+                                        className="absolute right-12 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-400 hover:bg-dark-1 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        aria-label="Generate pickup lines"
+                                    >
+                                        {!currentUser.isPremium && (
+                                            <div className="absolute -top-1 -right-1 bg-yellow-400 text-black p-0.5 rounded-full shadow-md z-10">
+                                                <CrownIcon className="w-3 h-3" />
+                                            </div>
+                                        )}
+                                        <LightbulbIcon className="w-5 h-5" />
+                                    </button>
                                     <button 
                                         type="button" 
                                         onClick={handleGenerateSuggestions}

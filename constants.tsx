@@ -1,6 +1,36 @@
 import React from 'react';
 import { Badge, DateCategory } from './types';
 
+// USER
+export const CURRENT_USER_ID = 1;
+
+// THEMES
+export interface ColorTheme {
+  bg: string;
+  glow: string;
+  gradientFrom: string;
+  gradientTo: string;
+}
+
+export const colorThemes: ColorTheme[] = [
+    { bg: 'bg-brand-pink', glow: 'shadow-glow-pink', gradientFrom: 'from-brand-pink', gradientTo: 'to-brand-purple' },
+    { bg: 'bg-blue-600', glow: 'shadow-glow-blue', gradientFrom: 'from-blue-500', gradientTo: 'to-cyan-400' },
+    { bg: 'bg-green-600', glow: 'shadow-glow-green', gradientFrom: 'from-green-500', gradientTo: 'to-emerald-400' },
+    { bg: 'bg-orange-500', glow: 'shadow-glow-orange', gradientFrom: 'from-orange-500', gradientTo: 'to-amber-400' },
+    { bg: 'bg-teal-500', glow: 'shadow-glow-teal', gradientFrom: 'from-teal-500', gradientTo: 'to-cyan-500' },
+];
+
+// CATEGORIES
+export const DATE_CATEGORIES: Record<DateCategory, { color: string }> = {
+    'Food & Drink': { color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
+    'Outdoors & Adventure': { color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+    'Arts & Culture': { color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+    'Nightlife': { color: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' },
+    'Relaxing & Casual': { color: 'bg-sky-500/20 text-sky-400 border-sky-500/30' },
+    'Active & Fitness': { color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+    'Adult (18+)': { color: 'bg-rose-500/20 text-rose-400 border-rose-500/30' },
+};
+
 // SVG Icons
 export const HeartIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -46,7 +76,7 @@ export const PlusIcon = ({ className }: { className?: string }) => (
 
 export const CogIcon = ({ className }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0-.61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+        <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61-.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0-.61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
     </svg>
 );
 
@@ -70,7 +100,7 @@ export const BrainIcon = ({ className }: { className?: string }) => (
 
 export const CrownIcon = ({ className }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3H5a2 2 0 00-2 2v1h20v-1a2 2 0 00-2-2z"/>
+        <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .55-.45 1-1 1H6c-.55 0-1-.45-1-1v-1h14v1z"/>
     </svg>
 );
 
@@ -81,87 +111,102 @@ export const MapPinIcon = ({ className }: { className?: string }) => (
 );
 
 export const AlertTriangleIcon = ({ className }: { className?: string }) => (
-  <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-  </svg>
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+        <line x1="12" y1="9" x2="12" y2="13"></line>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+    </svg>
 );
 
-// Badge Icons
+export const TicketIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+    </svg>
+);
+
+export const BuildingIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/>
+    </svg>
+);
+
+{/* FIX: Updated StarIcon to accept and apply a 'style' prop to fix a type error in SwipeDeck.tsx. */}
+export const StarIcon = ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} style={style} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+    </svg>
+);
+
 export const TrophyIcon = ({ className }: { className?: string }) => (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2c-5.52 0-10 4.48-10 10s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-2-6h4v-2h-4v2zm-2-4h8v-2h-8v2z" />
-        <path d="M18 6h-2v2h2V6zm-4 0h-4v2h4V6zm-6 0H6v2h2V6zm10 8h-2v2h2v-2zm-4 0h-4v2h4v-2zm-6 0H6v2h2v-2z" stroke="currentColor" strokeWidth="1" />
-        <path d="M12,5 C10.89,5 10,5.89 10,7 C10,8.11 10.89,9 12,9 C13.11,9 14,8.11 14,7 C14,5.89 13.11,5 12,5 L12,5 Z M12,11 C9.24,11 7,13.24 7,16 L17,16 C17,13.24 14.76,11 12,11 L12,11 Z" />
-    </svg>
-);
-export const MountainIcon = ({ className }: { className?: string }) => (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M14 6l-3.75 5 2.85 3.8-1.6 1.2C9.81 13.75 7 10 7 10l-6 8h22L14 6z" />
-    </svg>
-);
-export const MessagePlusIcon = ({ className }: { className?: string }) => (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-3 9h-4v4h-2v-4H7V9h4V5h2v4h4v2z" />
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M18.5 2h-13C4.12 2 3 3.12 3 4.5V10c0 .94.57 1.76 1.38 2.12L6 13v6c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2v-6l1.62-.88C20.43 11.76 21 10.94 21 10V4.5C21 3.12 19.88 2 18.5 2zM6 9H4V5h2v4zm14-4h-2v4h2V5z"/>
     </svg>
 );
 
-export const CURRENT_USER_ID = 1;
+export const CheckCircleIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+);
 
-export const colorThemes = [
-    { name: 'pink', bg: 'bg-brand-pink', glow: 'shadow-glow-pink', gradientFrom: 'from-brand-pink', gradientTo: 'to-purple-500' },
-    { name: 'green', bg: 'bg-green-500', glow: 'shadow-glow-green', gradientFrom: 'from-green-500', gradientTo: 'to-cyan-400' },
-    { name: 'blue', bg: 'bg-blue-500', glow: 'shadow-glow-blue', gradientFrom: 'from-blue-500', gradientTo: 'to-teal-400' },
-    { name: 'yellow', bg: 'bg-yellow-500', glow: 'shadow-glow-yellow', gradientFrom: 'from-yellow-500', gradientTo: 'to-orange-500' },
-    { name: 'orange', bg: 'bg-orange-500', glow: 'shadow-glow-orange', gradientFrom: 'from-orange-500', gradientTo: 'to-red-500' },
-    { name: 'teal', bg: 'bg-teal-500', glow: 'shadow-glow-teal', gradientFrom: 'from-teal-500', gradientTo: 'to-emerald-500' },
-    { name: 'purple', bg: 'bg-brand-purple', glow: 'shadow-glow-purple', gradientFrom: 'from-brand-purple', gradientTo: 'to-pink-500' },
-];
 
-export type ColorTheme = typeof colorThemes[0];
+// BADGES
+const FirstDateIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+    </svg>
+);
+const AdventurousIcon = ({ className }: { className?: string }) => (
+     <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 15l4-4 4 4 5-5 4 4" />
+    </svg>
+);
+const StarterIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a2 2 0 01-2-2V4a2 2 0 012-2h8a2 2 0 012 2v4z" />
+    </svg>
+);
+const ProlificPlannerIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+);
+
+const CommunityContenderIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+);
 
 export const BADGES: Record<Badge['id'], Badge> = {
-  first_date: {
-    id: 'first_date',
-    name: 'First Date Posted',
-    description: 'You posted your very first date idea!',
-    icon: TrophyIcon,
-  },
-  adventurous: {
-    id: 'adventurous',
-    name: 'Adventurous Planner',
-    description: 'You posted a date idea for the great outdoors!',
-    icon: MountainIcon,
-  },
-  starter: {
-    id: 'starter',
-    name: 'Conversation Starter',
-    description: "You've sent over 5 messages and kept the chats going!",
-    icon: MessagePlusIcon,
-  },
-  prolific_planner: {
-    id: 'prolific_planner',
-    name: 'Prolific Planner',
-    description: 'You have posted 3 or more date ideas!',
-    icon: CalendarIcon,
-  }
-};
-
-export const WEEKLY_CHALLENGE_PROMPTS = [
-    { theme: "Foodie Week", prompt: "This week's challenge: plan the ultimate date for a food lover!" },
-    { theme: "Movie Magic", prompt: "This week's challenge: design a date inspired by your favorite movie." },
-    { theme: "Budget Ballers", prompt: "This week's challenge: create an amazing date that costs less than $20." },
-    { theme: "Adventure Awaits", prompt: "This week's challenge: post the most adventurous date you can imagine." },
-    { theme: "Cozy & Casual", prompt: "This week's challenge: describe the perfect cozy, relaxing date night." },
-    { theme: "Learn Something New", prompt: "This week's challenge: plan a creative date that involves learning a new skill." },
-    { theme: "Night Owl's Dream", prompt: "This week's challenge: what does the perfect night out on the town look like?" },
-];
-
-export const DATE_CATEGORIES: Record<DateCategory, { name: DateCategory; color: string; }> = {
-  'Food & Drink': { name: 'Food & Drink', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
-  'Outdoors & Adventure': { name: 'Outdoors & Adventure', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-  'Arts & Culture': { name: 'Arts & Culture', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
-  'Nightlife': { name: 'Nightlife', color: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' },
-  'Relaxing & Casual': { name: 'Relaxing & Casual', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
-  'Active & Fitness': { name: 'Active & Fitness', color: 'bg-lime-500/20 text-lime-400 border-lime-500/30' },
-  'Adult (18+)': { name: 'Adult (18+)', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+    first_date: {
+        id: 'first_date',
+        name: 'First Date Dynamo',
+        description: "You posted your first date idea! Way to put yourself out there.",
+        icon: FirstDateIcon,
+    },
+    adventurous: {
+        id: 'adventurous',
+        name: 'Adventurer',
+        description: 'You posted an adventurous date. Let the excitement begin!',
+        icon: AdventurousIcon,
+    },
+    starter: {
+        id: 'starter',
+        name: 'Conversation Starter',
+        description: "You've sent your first few messages. Keep the chats flowing!",
+        icon: StarterIcon,
+    },
+    prolific_planner: {
+        id: 'prolific_planner',
+        name: 'Prolific Planner',
+        description: "You've posted multiple date ideas. You're a dating visionary!",
+        icon: ProlificPlannerIcon,
+    },
+    community_contender: {
+        id: 'community_contender',
+        name: 'Community Contender',
+        description: 'You participated in a community challenge event!',
+        icon: CommunityContenderIcon,
+    },
 };

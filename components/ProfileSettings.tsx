@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Gender, Badge } from '../types';
 import { useToast } from '../contexts/ToastContext';
-import { LightbulbIcon, SparklesIcon, CrownIcon, BADGES } from '../constants';
+import { LightbulbIcon, SparklesIcon, CrownIcon, BADGES, CheckCircleIcon } from '../constants';
 import ProfileDetailCard from './ProfileDetailCard';
 import type { ColorTheme } from '../constants';
 import { optimizePhotoOrder, generateAppBackground } from '../services/geminiService';
@@ -47,6 +47,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ currentUser, onSave, 
     const { showToast } = useToast();
     const MAX_PHOTOS = 6;
     const [isOptimizingPhotos, setIsOptimizingPhotos] = useState(false);
+    const [isVerifying, setIsVerifying] = useState(false);
 
     // State for background generation
     const [backgroundPrompt, setBackgroundPrompt] = useState('');
@@ -68,16 +69,24 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ currentUser, onSave, 
         setFormData(prev => ({ ...prev, [name]: name === 'age' ? parseInt(value) : value }));
     };
     
-    const handlePreferenceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value, checked } = e.target;
-        
-        if (name === "interestedIn") {
-            const currentInterests = formData.preferences.interestedIn;
-            const newInterests = checked ? [...currentInterests, value as Gender] : currentInterests.filter(g => g !== value);
-            setFormData(prev => ({...prev, preferences: { ...prev.preferences, interestedIn: newInterests }}));
-        } else {
-            setFormData(prev => ({ ...prev, preferences: { ...prev.preferences, ageRange: { ...prev.preferences.ageRange, [name]: parseInt(value) } } }));
-        }
+    const handlePreferenceChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            preferences: { ...prev.preferences, [name]: value }
+        }));
+    };
+    
+    const handleInterestedInChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { value, checked } = e.target;
+        const currentInterests = formData.preferences.interestedIn;
+        const newInterests = checked ? [...currentInterests, value as Gender] : currentInterests.filter(g => g !== value);
+        setFormData(prev => ({...prev, preferences: { ...prev.preferences, interestedIn: newInterests }}));
+    };
+    
+    const handleAgeRangeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, preferences: { ...prev.preferences, ageRange: { ...prev.preferences.ageRange, [name]: parseInt(value) } } }));
     };
 
     const handleAddInterest = () => {
@@ -175,6 +184,24 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ currentUser, onSave, 
     const handleGenerateFromProfile = () => {
         const prompt = `An atmospheric, abstract, beautiful background image suitable for a dating app, inspired by these themes: ${currentUser.interests.join(', ')}. Style: elegant, modern, subtle.`;
         handleGenerateBackground(prompt);
+    };
+
+    const handleVerification = () => {
+        setIsVerifying(true);
+        showToast("Simulating verification process...", 'info');
+        setTimeout(() => {
+            setFormData(prev => ({ ...prev, isVerified: true }));
+            showToast("You've been verified!", 'success');
+            setIsVerifying(false);
+        }, 2500);
+    };
+    
+    const handleBoost = () => {
+        if (!currentUser.isPremium) {
+            onPremiumFeatureClick();
+            return;
+        }
+        showToast("Profile Boost activated for 30 minutes!", 'success');
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -291,6 +318,35 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ currentUser, onSave, 
                                 )}
                             </div>
                         </div>
+                        
+                        {/* Verification & Boost */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-dark-3">
+                            <div className="space-y-2">
+                                <h3 className="text-lg font-semibold text-white">Profile Verification</h3>
+                                {formData.isVerified ? (
+                                    <div className="flex items-center gap-2 text-green-400 bg-green-500/10 px-3 py-2 rounded-lg text-sm">
+                                        <CheckCircleIcon className="w-5 h-5" />
+                                        <p className="font-semibold">You are verified!</p>
+                                    </div>
+                                ) : (
+                                    <button type="button" onClick={handleVerification} disabled={isVerifying} className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-50">
+                                        {isVerifying ? 'Verifying...' : 'Get Verified'}
+                                    </button>
+                                )}
+                            </div>
+                             <div className="space-y-2">
+                                <h3 className="text-lg font-semibold text-white">Profile Boost</h3>
+                                <button type="button" onClick={handleBoost} className="relative w-full bg-purple-600 text-white py-2 rounded-lg font-semibold hover:bg-purple-700 transition">
+                                    {!currentUser.isPremium && (
+                                        <div className="absolute -top-1.5 -right-1.5 bg-yellow-400 text-black p-0.5 rounded-full shadow-md">
+                                            <CrownIcon className="w-3 h-3" />
+                                        </div>
+                                    )}
+                                    Boost My Profile
+                                </button>
+                            </div>
+                        </div>
+
 
                         {/* App Background */}
                         <div className="space-y-4 pt-6 border-t border-dark-3">
@@ -345,24 +401,46 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ currentUser, onSave, 
 
                         {/* Dating Preferences */}
                         <div className="space-y-4 pt-6 border-t border-dark-3">
-                            <h3 className="text-xl font-semibold text-white">I'm interested in...</h3>
-                            <div className="flex gap-6">
-                                <label className="flex items-center gap-2">
-                                    <input type="checkbox" name="interestedIn" value={Gender.Male} checked={formData.preferences.interestedIn.includes(Gender.Male)} onChange={handlePreferenceChange} className={`w-5 h-5 rounded ${checkboxClass} bg-dark-3 border-dark-3`} />
-                                    Males
-                                </label>
-                                 <label className="flex items-center gap-2">
-                                    <input type="checkbox" name="interestedIn" value={Gender.Female} checked={formData.preferences.interestedIn.includes(Gender.Female)} onChange={handlePreferenceChange} className={`w-5 h-5 rounded ${checkboxClass} bg-dark-3 border-dark-3`} />
-                                    Females
-                                </label>
-                            </div>
-
-                            <h3 className="text-xl font-semibold text-white pt-4">Age Range</h3>
-                            <div className="flex items-center gap-4">
-                                 <input type="number" name="min" value={formData.preferences.ageRange.min} onChange={handlePreferenceChange} className={`w-24 bg-dark-3 border border-dark-3 rounded-lg p-3 text-white ${focusRingClass} transition`} />
-                                 <span className="text-gray-400">to</span>
-                                 <input type="number" name="max" value={formData.preferences.ageRange.max} onChange={handlePreferenceChange} className={`w-24 bg-dark-3 border border-dark-3 rounded-lg p-3 text-white ${focusRingClass} transition`} />
-                            </div>
+                            <h3 className="text-xl font-semibold text-white">Dating Preferences</h3>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">I'm interested in...</label>
+                                    <div className="flex gap-6">
+                                        <label className="flex items-center gap-2">
+                                            <input type="checkbox" name="interestedIn" value={Gender.Male} checked={formData.preferences.interestedIn.includes(Gender.Male)} onChange={handleInterestedInChange} className={`w-5 h-5 rounded ${checkboxClass} bg-dark-3 border-dark-3`} />
+                                            Males
+                                        </label>
+                                         <label className="flex items-center gap-2">
+                                            <input type="checkbox" name="interestedIn" value={Gender.Female} checked={formData.preferences.interestedIn.includes(Gender.Female)} onChange={handleInterestedInChange} className={`w-5 h-5 rounded ${checkboxClass} bg-dark-3 border-dark-3`} />
+                                            Females
+                                        </label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">Age Range</label>
+                                    <div className="flex items-center gap-2">
+                                         <input type="number" name="min" value={formData.preferences.ageRange.min} onChange={handleAgeRangeChange} className={`w-20 bg-dark-3 border border-dark-3 rounded-lg p-2 text-white ${focusRingClass} transition`} />
+                                         <span className="text-gray-400">to</span>
+                                         <input type="number" name="max" value={formData.preferences.ageRange.max} onChange={handleAgeRangeChange} className={`w-20 bg-dark-3 border border-dark-3 rounded-lg p-2 text-white ${focusRingClass} transition`} />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label htmlFor="relationshipIntent" className="block text-sm font-medium text-gray-300 mb-2">Relationship Intent</label>
+                                    <select id="relationshipIntent" name="relationshipIntent" value={formData.preferences.relationshipIntent} onChange={handlePreferenceChange} className={`w-full bg-dark-3 border border-dark-3 rounded-lg p-2 text-white ${focusRingClass} transition`}>
+                                        <option>Serious</option>
+                                        <option>Casual</option>
+                                        <option>Exploring</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label htmlFor="activityLevel" className="block text-sm font-medium text-gray-300 mb-2">Activity Level</label>
+                                    <select id="activityLevel" name="activityLevel" value={formData.preferences.activityLevel} onChange={handlePreferenceChange} className={`w-full bg-dark-3 border border-dark-3 rounded-lg p-2 text-white ${focusRingClass} transition`}>
+                                        <option>Active</option>
+                                        <option>Relaxed</option>
+                                        <option>Bit of both</option>
+                                    </select>
+                                </div>
+                             </div>
                         </div>
                         
                         <button type="submit" className={`w-full py-3 mt-4 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r ${primaryButtonGradient} text-white hover:opacity-90 ${primaryGlow}`}>Save Changes</button>

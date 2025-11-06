@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { CrownIcon, XIcon } from '../constants';
+import { useToast } from '../contexts/ToastContext';
+// We would use the Supabase client to call our Edge Functions
+// import { supabase } from '../services/supabaseClient';
 
 interface MonetizationModalProps {
     onClose: () => void;
     onUpgrade: () => void;
-    currentUserId: number;
 }
 
 const FeatureListItem: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -18,25 +20,76 @@ const FeatureListItem: React.FC<{ children: React.ReactNode }> = ({ children }) 
     </li>
 );
 
-const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrade, currentUserId }) => {
-    const [paymentError, setPaymentError] = useState<string | null>(null);
-    const [isProcessing, setIsProcessing] = useState(false);
+const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrade }) => {
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [paypalOrderID, setPaypalOrderID] = useState<string | null>(null);
+    const { showToast } = useToast();
 
-    const handlePayPalPayment = () => {
-        // Direct PayPal.me payment to your @jluc92 account
-        const paypalUrl = `https://www.paypal.me/jluc92/10.00`;
-        
-        // Open PayPal payment in new window
-        window.open(paypalUrl, '_blank', 'width=600,height=700');
-        
-        // Show completion instructions
-        setIsProcessing(true);
+    const handleCreateOrder = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            // STEP 1: Call a server-side function to create a PayPal order.
+            // This function would securely communicate with PayPal and store a 'PENDING'
+            // order in your `paypal_orders` database table.
+            //
+            // Example of real code:
+            // const { data, error } = await supabase.functions.invoke('create-paypal-order');
+            // if (error) throw error;
+            // setPaypalOrderID(data.orderID);
+
+            // --- SIMULATION ---
+            showToast('Connecting to payment service...', 'info');
+            await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
+            const mockOrderID = `SIMULATED_ORDER_${Date.now()}`;
+            console.log("Simulated PayPal order created:", mockOrderID);
+            setPaypalOrderID(mockOrderID);
+            // --- END SIMULATION ---
+        } catch (err: any) {
+            console.error("Failed to create PayPal order:", err);
+            const errorMessage = "Could not connect to PayPal. Please try again.";
+            setError(errorMessage);
+            showToast(errorMessage, 'error');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const handlePaymentComplete = () => {
-        // Grant premium access after user confirms payment
-        onUpgrade();
-        onClose();
+    const handleCaptureOrder = async () => {
+        if (!paypalOrderID) return;
+        setIsLoading(true);
+        setError(null);
+        try {
+            // STEP 2: Call a server-side function to capture the payment.
+            // This function confirms the payment with PayPal. If successful, it updates
+            // the `paypal_orders` table status to 'COMPLETED' and updates the
+            // `users` table to set `is_premium = true`.
+            //
+            // Example of real code:
+            // const { error } = await supabase.functions.invoke('capture-paypal-order', {
+            //     body: { orderID: paypalOrderID },
+            // });
+            // if (error) throw error;
+            
+            // --- SIMULATION ---
+            showToast('Verifying your payment...', 'info');
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate network delay
+            console.log("Simulated PayPal order captured:", paypalOrderID);
+            // --- END SIMULATION ---
+
+            // Only if the server-side verification is successful, do we call onUpgrade.
+            onUpgrade();
+
+        } catch (err: any) {
+            console.error("Failed to capture PayPal payment:", err);
+            const errorMessage = "Payment verification failed. Please try again.";
+            setError(errorMessage);
+            showToast(errorMessage + " You have not been charged.", 'error');
+            setPaypalOrderID(null); // Reset the flow
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -74,63 +127,40 @@ const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrad
                          <FeatureListItem>
                             <strong>See Who Likes You:</strong> Unlock all your matches immediately.
                         </FeatureListItem>
-                        <FeatureListItem>
-                            <strong>Unlimited Messages:</strong> Chat without limits.
-                        </FeatureListItem>
                     </ul>
                     
-                    <div className="min-h-[120px] flex flex-col items-center justify-center">
-                        {paymentError && (
-                            <div className="w-full mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm text-center">
-                                {paymentError}
-                                <button 
-                                    onClick={() => setPaymentError(null)}
-                                    className="ml-2 text-red-300 hover:text-red-100"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                        )}
-                        
-                        {isProcessing ? (
-                            <div className="w-full space-y-4">
-                                <div className="w-full p-4 bg-blue-500/20 border border-blue-500/50 rounded-lg text-blue-400 text-center">
-                                    <p className="font-semibold">Payment Window Opened!</p>
-                                    <p className="text-sm mt-2">Complete your $10.00 payment in the PayPal window, then click below:</p>
-                                </div>
-                                <button 
-                                    onClick={handlePaymentComplete}
-                                    className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition"
-                                >
-                                    ✅ I Completed the Payment
-                                </button>
-                                <button 
-                                    onClick={() => setIsProcessing(false)}
-                                    className="w-full py-2 text-gray-400 hover:text-gray-300 transition"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
+                    <div className="min-h-[76px] flex flex-col items-center justify-center">
+                        {error && <p className="text-red-400 text-center text-sm mb-2">{error}</p>}
+
+                        {!paypalOrderID ? (
+                            <button 
+                                onClick={handleCreateOrder}
+                                disabled={isLoading}
+                                className="w-full bg-[#0070ba] text-white font-bold py-3 px-4 rounded-lg hover:bg-[#005ea6] transition-colors duration-300 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-wait"
+                            >
+                                {isLoading ? (
+                                    'Connecting...'
+                                ) : (
+                                    <>
+                                        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M7.525 2.5h8.95c.588 0 .95.637.747 1.183l-1.99 5.308.204.075c1.23.454 2.055 1.55 2.055 2.822 0 1.65-1.34 2.99-2.99 2.99h-1.28c-.52 0-.964.388-1.03.905l-.33 2.64H8.818l.84-6.723c.06-.48-.31-.905-.79-.905H6.28c-1.65 0-2.99-1.34-2.99-2.99 0-1.47 1.058-2.69 2.455-2.93l.38-.065L7.525 2.5zm1.51 1.042H7.9l-1.12 2.986.32-.054c1.78-.3 3.32 1.01 3.32 2.805 0 .1-.01.2-.02.3l-.32 2.56h.97c.54 0 .99-.45.99-.99s-.45-.99-.99-.99h-.2L13.116 5.3l-4.08-1.758z"></path></svg>
+                                        <span>Pay with PayPal</span>
+                                    </>
+                                )}
+                            </button>
                         ) : (
-                            <div className="w-full space-y-4">
-                                <button 
-                                    onClick={handlePayPalPayment}
-                                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-lg transition flex items-center justify-center gap-2"
-                                >
-                                    <span>💳</span>
-                                    Pay $10.00 with PayPal
-                                </button>
-                                <div className="text-center text-gray-500 text-sm">
-                                    Opens PayPal.me/jluc92 • Secure payment • Instant premium access
-                                </div>
-                            </div>
+                             <button 
+                                onClick={handleCaptureOrder}
+                                disabled={isLoading}
+                                className="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition-colors duration-300 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-wait"
+                            >
+                                {isLoading ? 'Verifying Payment...' : 'Confirm Premium Purchase'}
+                            </button>
                         )}
                     </div>
 
                     <button 
                         onClick={onClose} 
                         className="w-full mt-3 text-gray-500 font-semibold hover:text-gray-300 transition"
-                        disabled={isProcessing}
                     >
                         Not Now
                     </button>
@@ -140,7 +170,6 @@ const MonetizationModal: React.FC<MonetizationModalProps> = ({ onClose, onUpgrad
                     onClick={onClose} 
                     className="absolute top-3 right-3 text-gray-500 hover:text-white"
                     aria-label="Close"
-                    disabled={isProcessing}
                 >
                     <XIcon className="w-6 h-6" />
                 </button>

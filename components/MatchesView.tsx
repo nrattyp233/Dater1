@@ -14,24 +14,20 @@ interface MatchesViewProps {
 
 const MatchCard: React.FC<{
     user: User;
-    currentUser: User;
     onViewProfile: () => void;
     onPlanDate: () => void;
     isMaleTheme: boolean;
     isPremium: boolean;
     onPremiumFeatureClick: () => void;
-}> = ({ user, currentUser, onViewProfile, onPlanDate, isMaleTheme, isPremium, onPremiumFeatureClick }) => {
+}> = ({ user, onViewProfile, onPlanDate, isMaleTheme, isPremium, onPremiumFeatureClick }) => {
     const planButtonClass = isMaleTheme
         ? 'bg-green-700/80 hover:bg-green-700/100'
         : 'bg-brand-purple/80 hover:bg-brand-purple/100';
 
-    const handlePlanDateClick = async () => {
-        try {
-            // Verify premium status before allowing date planning
-            const { requirePremiumForFeature } = await import('../services/api');
-            await requirePremiumForFeature(currentUser.id, 'AI Date Planning'); // Use current user ID
+    const handlePlanDateClick = () => {
+        if (isPremium) {
             onPlanDate();
-        } catch (error) {
+        } else {
             onPremiumFeatureClick();
         }
     };
@@ -105,7 +101,6 @@ const MatchesView: React.FC<MatchesViewProps> = ({ matchedUsers, currentUser, on
                     <MatchCard
                         key={user.id}
                         user={user}
-                        currentUser={currentUser}
                         onViewProfile={() => onViewProfile(user)}
                         onPlanDate={() => onPlanDate(user)}
                         isMaleTheme={isMaleTheme}

@@ -1,3 +1,4 @@
+// FIX: Import React to use React.FC
 import React from 'react';
 
 export enum Gender {
@@ -6,14 +7,14 @@ export enum Gender {
 }
 
 export interface Badge {
-  id: 'first_date' | 'adventurous' | 'starter' | 'prolific_planner';
+  id: 'first_date' | 'adventurous' | 'starter' | 'prolific_planner' | 'community_contender';
   name: string;
   description: string;
   icon: React.FC<{ className?: string }>;
 }
 
 export interface User {
-  id: string; // Changed to string to match Supabase user IDs
+  id: number;
   name: string;
   age: number;
   bio: string;
@@ -21,9 +22,13 @@ export interface User {
   interests: string[];
   gender: Gender;
   isPremium: boolean;
+  isVerified: boolean;
   preferences: {
     interestedIn: Gender[];
     ageRange: { min: number; max: number };
+    relationshipIntent: 'Serious' | 'Casual' | 'Exploring';
+    communicationStyle: 'Texting' | 'Calls' | 'In-person';
+    activityLevel: 'Active' | 'Relaxed' | 'Bit of both';
   };
   earnedBadgeIds?: Badge['id'][];
 }
@@ -31,15 +36,18 @@ export interface User {
 export type DateCategory = 'Food & Drink' | 'Outdoors & Adventure' | 'Arts & Culture' | 'Nightlife' | 'Relaxing & Casual' | 'Active & Fitness' | 'Adult (18+)';
 
 export interface DatePost {
-  id: string; // Changed to string to match string ID system
+  id: number;
   title: string;
   description: string;
   location: string;
   dateTime: string;
-  createdBy: string; // Changed to string to match User.id
-  applicants: string[]; // Changed to string array
-  chosenApplicantId: string | null; // Changed to string
+  createdBy: number;
+  applicants: number[];
+  priorityApplicants?: number[];
+  chosenApplicantId: number | null;
   categories: DateCategory[];
+  businessId?: number; // Link to a partner business
+  dealId?: number; // Link to a specific deal
 }
 
 export interface DateIdea {
@@ -54,9 +62,9 @@ export interface LocationSuggestion {
 }
 
 export interface Message {
-  id: string; // Changed to string to match string ID system
-  senderId: string; // Changed to string to match User.id
-  receiverId: string; // Changed to string to match User.id
+  id: number;
+  senderId: number;
+  receiverId: number;
   text: string;
   timestamp: string;
   read: boolean;
@@ -69,5 +77,38 @@ export enum View {
   Matches,
   MyDates,
   Profile,
-  Chat
+  Chat,
+  BusinessSignup,
+  Leaderboard,
+}
+
+export interface LocalEvent {
+  id: number;
+  title: string;
+  category: DateCategory;
+  description:string;
+  location: string;
+  date: string;
+  imageUrl: string;
+  source: string;
+  price?: string;
+}
+
+export interface Business {
+    id: number;
+    name: string;
+    description: string;
+    address: string;
+    category: DateCategory;
+    photos: string[];
+    website?: string;
+    status: 'approved' | 'pending';
+}
+
+export interface Deal {
+    id: number;
+    businessId: number;
+    title: string;
+    description: string;
+    commissionRate: number; // e.g., 0.15 for 15%
 }

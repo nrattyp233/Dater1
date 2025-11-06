@@ -1,22 +1,28 @@
 import React, { useState, useMemo } from 'react';
-import { DatePost, User, Gender, DateCategory } from '../types';
+import { DatePost, User, Gender, DateCategory, LocalEvent, Business, Deal } from '../types';
 import { SkeletonLoader } from './SkeletonLoader';
-import { MapPinIcon, AlertTriangleIcon } from '../constants';
+import { MapPinIcon, AlertTriangleIcon, TicketIcon, PlusIcon, BuildingIcon, StarIcon, CrownIcon } from '../constants';
 import { DATE_CATEGORIES } from '../constants';
 import type { ColorTheme } from '../constants';
 
 interface DateCardProps {
     datePost: DatePost;
     allUsers: User[];
+    allBusinesses: Business[];
     onToggleInterest: (dateId: number) => void;
+    onPriorityInterest: (dateId: number) => void;
     isInterested: boolean;
     isCreator: boolean;
     gender?: Gender;
     onViewProfile: (user: User) => void;
+    onViewBusiness: (business: Business) => void;
+    currentUser: User;
+    onPremiumFeatureClick: () => void;
 }
 
-const DateCard: React.FC<DateCardProps> = ({ datePost, allUsers, onToggleInterest, isInterested, isCreator, gender, onViewProfile }) => {
+const DateCard: React.FC<DateCardProps> = ({ datePost, allUsers, allBusinesses, onToggleInterest, onPriorityInterest, isInterested, isCreator, gender, onViewProfile, onViewBusiness, currentUser, onPremiumFeatureClick }) => {
     const creator = allUsers.find(u => u.id === datePost.createdBy);
+    const business = datePost.businessId ? allBusinesses.find(b => b.id === datePost.businessId) : null;
 
     if (!creator) return null;
 
@@ -35,19 +41,37 @@ const DateCard: React.FC<DateCardProps> = ({ datePost, allUsers, onToggleInteres
         window.open(url, '_blank', 'noopener,noreferrer');
     };
 
+    const handlePriorityClick = () => {
+        if (!currentUser.isPremium) {
+            onPremiumFeatureClick();
+        } else {
+            onPriorityInterest(datePost.id);
+        }
+    };
+
     return (
         <div className={`bg-dark-2 rounded-2xl p-6 flex flex-col gap-4 border border-dark-3 ${hoverBorderClass} transition-colors duration-300`}>
-            <button 
-                onClick={() => onViewProfile(creator)}
-                className="flex items-center gap-3 text-left w-full rounded-lg p-1 -ml-1 hover:bg-dark-3/50 transition-colors"
-                aria-label={`View profile of ${creator.name}`}
-            >
-                <img src={creator.photos[0]} alt={creator.name} className="w-12 h-12 rounded-full object-cover"/>
-                <div>
-                    <p className="font-semibold text-white">{creator.name}, {creator.age}</p>
-                    <p className="text-sm text-gray-400">Posted a date idea</p>
-                </div>
-            </button>
+            <div className="flex items-center justify-between">
+                <button 
+                    onClick={() => onViewProfile(creator)}
+                    className="flex items-center gap-3 text-left rounded-lg p-1 -ml-1 hover:bg-dark-3/50 transition-colors"
+                    aria-label={`View profile of ${creator.name}`}
+                >
+                    <img src={creator.photos[0]} alt={creator.name} className="w-12 h-12 rounded-full object-cover"/>
+                    <div>
+                        <p className="font-semibold text-white">{creator.name}, {creator.age}</p>
+                        <p className="text-sm text-gray-400">Posted a date idea</p>
+                    </div>
+                </button>
+                {business && (
+                    <button 
+                        onClick={() => onViewBusiness(business)}
+                        className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20"
+                    >
+                       <BuildingIcon className="w-4 h-4" /> Partner Venue
+                    </button>
+                )}
+            </div>
             <div>
                 <h3 className={`text-xl font-bold ${titleClass}`}>{datePost.title}</h3>
                 <p className="text-gray-300 mt-2">{datePost.description}</p>
@@ -79,12 +103,27 @@ const DateCard: React.FC<DateCardProps> = ({ datePost, allUsers, onToggleInteres
                 </div>
             </div>
             {!isCreator && (
-                 <button 
-                    onClick={() => onToggleInterest(datePost.id)} 
-                    className={`mt-2 w-full py-2 rounded-lg font-bold transition-all duration-300 ${isInterested ? 'bg-gray-600 text-white hover:bg-gray-700' : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/30'}`}
-                 >
-                    {isInterested ? "I'm Not Interested" : "I'm Interested!"}
-                 </button>
+                 <div className="mt-2 flex gap-2">
+                    <button 
+                        onClick={() => onToggleInterest(datePost.id)} 
+                        className={`flex-1 w-full py-2 rounded-lg font-bold transition-all duration-300 ${isInterested ? 'bg-gray-600 text-white hover:bg-gray-700' : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/30'}`}
+                    >
+                        {isInterested ? "I'm Not Interested" : "I'm Interested!"}
+                    </button>
+                    <button
+                        onClick={handlePriorityClick}
+                        className={`relative flex-1 py-2 rounded-lg font-bold transition-all duration-300 flex items-center justify-center gap-2 ${ isMaleTheme ? 'bg-lime-500/20 text-lime-300 hover:bg-lime-500/30' : 'bg-brand-light/20 text-brand-light hover:bg-brand-light/30'}`}
+                        aria-label="Express priority interest"
+                    >
+                        {!currentUser.isPremium && (
+                            <div className="absolute -top-1.5 -right-1.5 bg-yellow-400 text-black p-0.5 rounded-full shadow-md">
+                                <CrownIcon className="w-3 h-3" />
+                            </div>
+                        )}
+                        <StarIcon className="w-5 h-5" />
+                        Priority
+                    </button>
+                </div>
             )}
             {isCreator && (
                 <div className={`mt-2 w-full py-2 text-center rounded-lg bg-dark-3 ${creatorTextColor} font-bold`}>This is your date</div>
@@ -93,25 +132,92 @@ const DateCard: React.FC<DateCardProps> = ({ datePost, allUsers, onToggleInteres
     );
 };
 
+// --- NEW COMPONENT: LocalEventCard ---
+interface LocalEventCardProps {
+    event: LocalEvent;
+    onCreate: (event: LocalEvent) => void;
+}
+
+const LocalEventCard: React.FC<LocalEventCardProps> = ({ event, onCreate }) => {
+    return (
+        <div className="flex-shrink-0 w-72 bg-dark-2 rounded-2xl overflow-hidden border border-dark-3 shadow-lg group relative">
+            <img src={event.imageUrl} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent" />
+            <div className="relative p-4 flex flex-col justify-end h-full text-white min-h-[200px]">
+                <div className="flex-grow"></div>
+                <h4 className="font-bold text-lg">{event.title}</h4>
+                <p className="text-sm text-gray-300">{event.location}</p>
+                <button 
+                    onClick={() => onCreate(event)}
+                    className="mt-3 w-full py-2 rounded-lg font-bold text-white bg-blue-600/80 backdrop-blur-sm hover:bg-blue-600 transition-all duration-300 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0"
+                    aria-label={`Create a date from ${event.title}`}
+                >
+                    <PlusIcon className="w-5 h-5"/>
+                    Create Date
+                </button>
+            </div>
+        </div>
+    );
+};
+
+interface BusinessCardProps {
+    business: Business;
+    deals: Deal[];
+    onView: (business: Business) => void;
+}
+
+const BusinessCard: React.FC<BusinessCardProps> = ({ business, deals, onView }) => {
+    const hasDeals = deals.some(d => d.businessId === business.id);
+    return (
+        <button onClick={() => onView(business)} className="flex-shrink-0 w-80 bg-dark-2 rounded-2xl overflow-hidden border border-dark-3 shadow-lg group relative text-left">
+            <img src={business.photos[0]} alt={business.name} className="w-full h-full object-cover absolute inset-0" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent" />
+            {hasDeals && (
+                 <div className="absolute top-3 right-3 bg-yellow-400 text-black text-xs font-bold px-2.5 py-1 rounded-full shadow-md">
+                    Special Offer!
+                </div>
+            )}
+            <div className="relative p-4 flex flex-col justify-end h-full text-white min-h-[200px]">
+                <div className="flex-grow"></div>
+                <h4 className="font-bold text-lg">{business.name}</h4>
+                <p className="text-sm text-gray-300 line-clamp-2">{business.description}</p>
+            </div>
+        </button>
+    );
+}
 
 interface DateMarketplaceProps {
     datePosts: DatePost[];
     allUsers: User[];
+    businesses: Business[];
+    deals: Deal[];
     onToggleInterest: (dateId: number) => void;
+    onPriorityInterest: (dateId: number) => void;
     currentUserId: number;
     gender?: Gender;
     isLoading: boolean;
     onViewProfile: (user: User) => void;
+    onViewBusiness: (business: Business) => void;
     activeColorTheme: ColorTheme;
+    localEvents: LocalEvent[];
+    onCreateDateFromEvent: (event: LocalEvent) => void;
+    searchLocation: string;
+    onSearchLocationChange: (location: string) => void;
+    isEventsLoading: boolean;
+    onPremiumFeatureClick: () => void;
 }
 
-const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, onToggleInterest, currentUserId, gender, isLoading, onViewProfile, activeColorTheme }) => {
+const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, businesses, deals, onToggleInterest, onPriorityInterest, currentUserId, gender, isLoading, onViewProfile, onViewBusiness, activeColorTheme, localEvents, onCreateDateFromEvent, searchLocation, onSearchLocationChange, isEventsLoading, onPremiumFeatureClick }) => {
     const [activeCategory, setActiveCategory] = useState<DateCategory | 'All'>('All');
+    const [tempSearch, setTempSearch] = useState('');
 
     const filteredDatePosts = useMemo(() => {
-        if (activeCategory === 'All') return datePosts;
-        return datePosts.filter(post => post.categories.includes(activeCategory));
-    }, [datePosts, activeCategory]);
+        return datePosts.filter(post => {
+            const categoryMatch = activeCategory === 'All' || post.categories.includes(activeCategory);
+            const locationMatch = !searchLocation || post.location.toLowerCase().includes(searchLocation.toLowerCase());
+            return categoryMatch && locationMatch;
+        });
+    }, [datePosts, activeCategory, searchLocation]);
 
     const allCategories = ['All' as const, ...Object.keys(DATE_CATEGORIES) as DateCategory[]];
     
@@ -137,10 +243,86 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
         </div>
     );
 
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSearchLocationChange(tempSearch);
+    };
+
+    const currentUser = allUsers.find(u => u.id === currentUserId);
+
     return (
         <div className="max-w-2xl mx-auto">
-             <h2 className={`text-3xl font-bold text-center mb-4 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>Date Marketplace</h2>
+             <h2 className={`text-3xl font-bold text-center mb-8 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>Date Marketplace</h2>
              
+            <div className="mb-12">
+                <div className="flex items-center gap-3 mb-4">
+                    <TicketIcon className="w-6 h-6 text-cyan-400" />
+                    <h3 className="text-2xl font-bold text-white capitalize">{searchLocation ? `Happening in ${searchLocation}` : 'Search a City to Find Events'}</h3>
+                </div>
+                {isEventsLoading ? (
+                    <div className="flex gap-4">
+                        <SkeletonLoader className="w-72 h-48 rounded-2xl flex-shrink-0" />
+                        <SkeletonLoader className="w-72 h-48 rounded-2xl flex-shrink-0" />
+                        <SkeletonLoader className="w-72 h-48 rounded-2xl flex-shrink-0" />
+                    </div>
+                ) : (
+                    localEvents.length > 0 ? (
+                        <div className="flex gap-4 overflow-x-auto scrollbar-hide -m-2 p-2">
+                            {localEvents.map(event => (
+                                <LocalEventCard key={event.id} event={event} onCreate={onCreateDateFromEvent} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center text-gray-400 py-8 bg-dark-2 rounded-xl">
+                            <h4 className="font-bold text-lg text-gray-300">
+                                {searchLocation ? `No events found for ${searchLocation}.` : "What's the plan?"}
+                            </h4>
+                            <p className="mt-1 text-sm">
+                                {searchLocation ? "Try another search, or browse community ideas below." : "Search for a city to get AI-powered, real-time event ideas!"}
+                            </p>
+                        </div>
+                    )
+                )}
+            </div>
+
+            <div className="mb-12">
+                <div className="flex items-center gap-3 mb-4">
+                    <BuildingIcon className="w-6 h-6 text-cyan-400" />
+                    <h3 className="text-2xl font-bold text-white">Partner Venues</h3>
+                </div>
+                <div className="flex gap-4 overflow-x-auto scrollbar-hide -m-2 p-2">
+                   {businesses.map(business => (
+                       <BusinessCard key={business.id} business={business} deals={deals} onView={onViewBusiness} />
+                   ))}
+                </div>
+            </div>
+
+            <div className="flex items-center gap-3 mb-4">
+                 <h3 className="text-2xl font-bold text-white">Community Date Ideas</h3>
+            </div>
+            <form onSubmit={handleSearch} className="mb-4 flex gap-2">
+                <div className="relative flex-grow">
+                    <MapPinIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                        type="text"
+                        value={tempSearch}
+                        onChange={(e) => setTempSearch(e.target.value)}
+                        placeholder="Search by city to find events & dates..."
+                        className="w-full bg-dark-3 border border-dark-3 rounded-lg p-3 pl-10 text-white focus:ring-2 focus:ring-brand-pink focus:border-brand-pink transition"
+                    />
+                </div>
+                <button type="submit" className="px-5 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition">Search</button>
+                 {searchLocation && (
+                    <button 
+                        type="button" 
+                        onClick={() => { onSearchLocationChange(''); setTempSearch(''); }}
+                        className="px-5 py-2 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 transition"
+                    >
+                        Clear
+                    </button>
+                )}
+            </form>
+
              <div className="flex flex-wrap justify-center gap-2 mb-8">
                 {allCategories.map(category => (
                     <button
@@ -172,19 +354,28 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
                                 key={post.id} 
                                 datePost={post} 
                                 allUsers={allUsers}
+                                allBusinesses={businesses}
                                 onToggleInterest={onToggleInterest}
+                                onPriorityInterest={onPriorityInterest}
                                 isInterested={isInterested}
                                 isCreator={isCreator}
                                 gender={gender}
                                 onViewProfile={onViewProfile}
+                                onViewBusiness={onViewBusiness}
+                                currentUser={currentUser!}
+                                onPremiumFeatureClick={onPremiumFeatureClick}
                             />
                         );
                     })
                 )}
                 {!isLoading && filteredDatePosts.length === 0 && (
                     <div className="text-center text-gray-400 py-12">
-                        <h3 className="text-xl font-bold text-gray-300">No dates found in this category.</h3>
-                        <p className="mt-2">Try a different category or check back later!</p>
+                        <h3 className="text-xl font-bold text-gray-300">No dates found.</h3>
+                        <p className="mt-2">
+                            {searchLocation 
+                                ? `Try a different location or clear the search.`
+                                : `Try a different category or check back later!`}
+                        </p>
                     </div>
                 )}
              </div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DatePost, User, Gender } from '../types';
-import { MapPinIcon } from '../constants';
+import { MapPinIcon, StarIcon, CheckCircleIcon } from '../constants';
 import type { ColorTheme } from '../constants';
 
 interface ApplicantCardProps {
@@ -10,21 +10,26 @@ interface ApplicantCardProps {
     hasChosenSomeoneElse: boolean;
     isMaleTheme: boolean;
     onViewProfile: (user: User) => void;
+    isPriority: boolean;
 }
 
-const ApplicantCard: React.FC<ApplicantCardProps> = ({ user, onChoose, isChosen, hasChosenSomeoneElse, isMaleTheme, onViewProfile }) => {
+const ApplicantCard: React.FC<ApplicantCardProps> = ({ user, onChoose, isChosen, hasChosenSomeoneElse, isMaleTheme, onViewProfile, isPriority }) => {
     const chooseButtonClass = isMaleTheme ? 'bg-green-700' : 'bg-brand-pink';
 
     return (
-        <div className="flex items-center justify-between bg-dark-3 p-3 rounded-lg">
+        <div className={`flex items-center justify-between bg-dark-3 p-3 rounded-lg transition-all duration-300 ${isPriority ? 'border-2 border-yellow-400/50' : ''}`}>
             <button
                 onClick={() => onViewProfile(user)}
                 className="flex items-center gap-3 text-left flex-1 min-w-0 rounded-lg p-1 -ml-1 hover:bg-dark-2/50 transition-colors"
                 aria-label={`View profile of ${user.name}`}
             >
+                {isPriority && <StarIcon className="w-6 h-6 text-yellow-400 flex-shrink-0" />}
                 <img src={user.photos[0]} alt={user.name} className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-white truncate">{user.name}, {user.age}</p>
+                    <p className="font-semibold text-white truncate flex items-center gap-1.5">
+                        {user.name}, {user.age}
+                        {user.isVerified && <CheckCircleIcon className="w-4 h-4 text-blue-400 flex-shrink-0" />}
+                    </p>
                     <p className="text-sm text-gray-400 truncate">{user.bio}</p>
                 </div>
             </button>
@@ -53,15 +58,15 @@ const ApplicantCard: React.FC<ApplicantCardProps> = ({ user, onChoose, isChosen,
 interface MyDatesManagerProps {
     myDates: DatePost[];
     allUsers: User[];
-    onChooseApplicant: (dateId: string, applicantId: string) => void;
-    onDeleteDate: (dateId: string) => void;
+    onChooseApplicant: (dateId: number, applicantId: number) => void;
+    onDeleteDate: (dateId: number) => void;
     gender?: Gender;
     onViewProfile: (user: User) => void;
     activeColorTheme: ColorTheme;
 }
 
 const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onChooseApplicant, onDeleteDate, gender, onViewProfile, activeColorTheme }) => {
-    const [selectedDateId, setSelectedDateId] = useState<string | null>(myDates.length > 0 ? myDates[0].id : null);
+    const [selectedDateId, setSelectedDateId] = useState<number | null>(myDates.length > 0 ? myDates[0].id : null);
 
     const selectedDate = myDates.find(d => d.id === selectedDateId);
     
@@ -91,6 +96,17 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
             }
         }
     };
+
+    const sortedApplicants = React.useMemo(() => {
+        if (!selectedDate) return [];
+        return [...selectedDate.applicants].sort((a, b) => {
+            const aIsPriority = selectedDate.priorityApplicants?.includes(a) ?? false;
+            const bIsPriority = selectedDate.priorityApplicants?.includes(b) ?? false;
+            if (aIsPriority && !bIsPriority) return -1;
+            if (!aIsPriority && bIsPriority) return 1;
+            return 0;
+        });
+    }, [selectedDate]);
 
     if (myDates.length === 0) {
         return (
@@ -131,11 +147,12 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
                             
                             <h4 className="font-semibold mb-4">Applicants:</h4>
                             <div className="flex-grow">
-                                {selectedDate.applicants.length > 0 ? (
+                                {sortedApplicants.length > 0 ? (
                                     <div className="space-y-3">
-                                        {selectedDate.applicants.map(applicantId => {
+                                        {sortedApplicants.map(applicantId => {
                                             const user = allUsers.find(u => u.id === applicantId);
                                             if (!user) return null;
+                                            const isPriority = selectedDate.priorityApplicants?.includes(applicantId) ?? false;
                                             return (
                                                 <ApplicantCard
                                                     key={user.id}
@@ -145,6 +162,7 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
                                                     hasChosenSomeoneElse={selectedDate.chosenApplicantId !== null && selectedDate.chosenApplicantId !== user.id}
                                                     isMaleTheme={isMaleTheme}
                                                     onViewProfile={onViewProfile}
+                                                    isPriority={isPriority}
                                                 />
                                             )
                                         })}
