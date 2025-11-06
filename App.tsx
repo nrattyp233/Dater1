@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, User, DatePost, Message, Badge, LocalEvent, Business, Deal } from './types';
 import { CURRENT_USER_ID, colorThemes, ColorTheme, BADGES } from './constants';
 import * as api from './services/api';
-import { categorizeDatePost } from './services/geminiService';
+import { categorizeDatePost, getCityFromCoords, getNearbyMajorCity } from './services/geminiService';
 import { useToast, ToastProvider } from './contexts/ToastContext';
 
 import Header from './components/Header';
@@ -31,6 +31,7 @@ const MainApp: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [matches, setMatches] = useState<number[]>([]);
     const [swipedLeftIds, setSwipedLeftIds] = useState<number[]>([]);
+    const [swipedRightIds, setSwipedRightIds] = useState<number[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [lastSwipedUserId, setLastSwipedUserId] = useState<number | null>(null);
     const { showToast } = useToast();
@@ -45,6 +46,8 @@ const MainApp: React.FC = () => {
     // State for local events and location search
     const [localEvents, setLocalEvents] = useState<LocalEvent[]>([]);
     const [searchLocation, setSearchLocation] = useState('');
+    const [effectiveSearchLocation, setEffectiveSearchLocation] = useState('');
+    const [isSearchExpanded, setIsSearchExpanded] = useState(false);
     const [isEventsLoading, setIsEventsLoading] = useState(false);
     const [eventForDate, setEventForDate] = useState<LocalEvent | null>(null);
     
@@ -73,6 +76,31 @@ const MainApp: React.FC = () => {
                 setIsBusinessLoading(true);
                 const savedBackground = localStorage.getItem('appBackground');
                 if (savedBackground) setAppBackground(savedBackground);
+
+                // Attempt to get user's location
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        async (position) => {
+                            try {
+                                const city = await getCityFromCoords(
+                                    position.coords.latitude,
+                                    position.coords.longitude
+                                );
+                                showToast(`Location found! Showing local dates for ${city}.`, 'info');
+                                setSearchLocation(city);
+                            } catch (geoError) {
+                                console.error("Reverse geocoding failed:", geoError);
+                                showToast("Could not determine city from your location. Please search manually.", 'info');
+                            }
+                        },
+                        (error) => {
+                            console.warn(`Geolocation error: ${error.message}`);
+                            showToast("Could not get your location. Please search for a city.", 'info');
+                        }
+                    );
+                } else {
+                    showToast("Geolocation is not supported by your browser. Please search for a city.", 'info');
+                }
 
                 const [
                     fetchedUsers, 
@@ -113,26 +141,62 @@ const MainApp: React.FC = () => {
         }
     }, [showToast, isAuthenticated]);
 
-    // Effect for fetching local events based on search location
+    // Effect for fetching local events and expanding search if necessary
     useEffect(() => {
-        const fetchEvents = async () => {
+        const fetchAndExpandSearch = async () => {
             if (!isAuthenticated || !searchLocation) {
-                setLocalEvents([]); // Clear events if no location is set
+                setLocalEvents([]);
+                setEffectiveSearchLocation('');
+                setIsSearchExpanded(false);
                 return;
             }
+            
             setIsEventsLoading(true);
             try {
-                const events = await api.getLocalEvents(searchLocation);
-                setLocalEvents(events);
+                // 1. Initial Search
+                const initialEvents = await api.getLocalEvents(searchLocation);
+                const initialPostsCount = datePosts.filter(p => p.location.toLowerCase().includes(searchLocation.toLowerCase())).length;
+                const totalResults = initialEvents.length + initialPostsCount;
+
+                // 2. Check Threshold
+                const MIN_RESULTS_THRESHOLD = 5;
+                if (totalResults < MIN_RESULTS_THRESHOLD) {
+                    showToast('Not many results. Expanding search to nearby areas...', 'info');
+                    
+                    // 3. Find Nearby Major City
+                    const majorCity = await getNearbyMajorCity(searchLocation);
+                    
+                    if (majorCity && majorCity.toLowerCase() !== searchLocation.toLowerCase()) {
+                        // 4. Expanded Search
+                        const expandedEvents = await api.getLocalEvents(majorCity);
+                        setLocalEvents(expandedEvents);
+                        setEffectiveSearchLocation(majorCity);
+                        setIsSearchExpanded(true);
+                    } else {
+                        // No major city found or it's the same, use initial results
+                        setLocalEvents(initialEvents);
+                        setEffectiveSearchLocation(searchLocation);
+                        setIsSearchExpanded(false);
+                    }
+                } else {
+                    // 5. Sufficient Results, No Expansion Needed
+                    setLocalEvents(initialEvents);
+                    setEffectiveSearchLocation(searchLocation);
+                    setIsSearchExpanded(false);
+                }
             } catch (error) {
-                showToast('Failed to load local events.', 'error');
+                showToast('Failed to load local data. Please try another location.', 'error');
                 setLocalEvents([]);
+                setEffectiveSearchLocation(searchLocation);
+                setIsSearchExpanded(false);
             } finally {
                 setIsEventsLoading(false);
             }
         };
-        fetchEvents();
-    }, [searchLocation, isAuthenticated, showToast]);
+
+        fetchAndExpandSearch();
+    }, [searchLocation, isAuthenticated, showToast, datePosts]);
+
 
     useEffect(() => {
         let newIndex;
@@ -162,14 +226,15 @@ const MainApp: React.FC = () => {
             const isNotCurrentUser = u.id !== CURRENT_USER_ID;
             const isNotMatched = !matches.includes(u.id);
             const isNotSwipedLeft = !swipedLeftIds.includes(u.id);
-            if (!currentUser.preferences) return isNotCurrentUser && isNotMatched && isNotSwipedLeft;
+            const isNotSwipedRight = !swipedRightIds.includes(u.id);
+            if (!currentUser.preferences) return isNotCurrentUser && isNotMatched && isNotSwipedLeft && isNotSwipedRight;
             
             const matchesGenderPref = currentUser.preferences.interestedIn.includes(u.gender);
             const matchesAgePref = u.age >= currentUser.preferences.ageRange.min && u.age <= currentUser.preferences.ageRange.max;
             
-            return isNotCurrentUser && isNotMatched && isNotSwipedLeft && matchesGenderPref && matchesAgePref;
+            return isNotCurrentUser && isNotMatched && isNotSwipedLeft && isNotSwipedRight && matchesGenderPref && matchesAgePref;
         });
-    }, [users, matches, swipedLeftIds, currentUser]);
+    }, [users, matches, swipedLeftIds, swipedRightIds, currentUser]);
     
     const myDates = datePosts.filter(d => d.createdBy === CURRENT_USER_ID);
     
@@ -192,6 +257,7 @@ const MainApp: React.FC = () => {
         try {
             const { isMatch } = await api.recordSwipe(currentUser.id, userId, direction);
             if (direction === 'right') {
+                setSwipedRightIds(prev => [...prev, userId]);
                 if (isMatch) {
                     setMatches(prev => [...prev, userId]);
                     const matchedUser = users.find(u => u.id === userId);
@@ -210,6 +276,7 @@ const MainApp: React.FC = () => {
         setLastSwipedUserId(userId);
         try {
             const { isMatch } = await api.recordSuperLike(currentUser.id, userId);
+            setSwipedRightIds(prev => [...prev, userId]);
             // In our mock API, a super like behaves like a normal swipe, but we give a special toast.
             // A real backend would handle the special notification.
             if (isMatch) {
@@ -230,6 +297,7 @@ const MainApp: React.FC = () => {
             await api.recallSwipe(currentUser.id, lastSwipedUserId);
             setMatches(prev => prev.filter(id => id !== lastSwipedUserId));
             setSwipedLeftIds(prev => prev.filter(id => id !== lastSwipedUserId));
+            setSwipedRightIds(prev => prev.filter(id => id !== lastSwipedUserId));
             const recalledUser = users.find(u => u.id === lastSwipedUserId);
             showToast(`Recalled ${recalledUser?.name || 'profile'}.`, 'info');
             setLastSwipedUserId(null);
@@ -394,7 +462,28 @@ const MainApp: React.FC = () => {
             case View.Swipe:
                 return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onSuperLike={handleSuperLike} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} />;
             case View.Dates:
-                return <DateMarketplace datePosts={datePosts} allUsers={users} businesses={businesses} deals={deals} onToggleInterest={handleToggleInterest} onPriorityInterest={handlePriorityInterest} currentUserId={CURRENT_USER_ID} gender={currentUser?.gender} isLoading={isLoading} onViewProfile={handleViewProfile} onViewBusiness={handleViewBusiness} activeColorTheme={activeColorTheme} localEvents={localEvents} onCreateDateFromEvent={handleCreateDateFromEvent} isEventsLoading={isEventsLoading} searchLocation={searchLocation} onSearchLocationChange={setSearchLocation} onPremiumFeatureClick={handleOpenMonetizationModal} />;
+                return <DateMarketplace 
+                            datePosts={datePosts} 
+                            allUsers={users} 
+                            businesses={businesses} 
+                            deals={deals} 
+                            onToggleInterest={handleToggleInterest} 
+                            onPriorityInterest={handlePriorityInterest} 
+                            currentUserId={CURRENT_USER_ID} 
+                            gender={currentUser?.gender} 
+                            isLoading={isLoading} 
+                            onViewProfile={handleViewProfile} 
+                            onViewBusiness={handleViewBusiness} 
+                            activeColorTheme={activeColorTheme} 
+                            localEvents={localEvents} 
+                            onCreateDateFromEvent={handleCreateDateFromEvent} 
+                            isEventsLoading={isEventsLoading} 
+                            searchLocation={searchLocation}
+                            effectiveSearchLocation={effectiveSearchLocation}
+                            isSearchExpanded={isSearchExpanded}
+                            onSearchLocationChange={setSearchLocation} 
+                            onPremiumFeatureClick={handleOpenMonetizationModal} 
+                        />;
             case View.Create:
                 return <CreateDateForm onCreateDate={handleCreateDate} currentUser={currentUser!} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} eventForDate={eventForDate} onClearEventForDate={clearEventForDate} businessForDate={businessForDate} onClearBusinessForDate={clearBusinessForDate} />;
             case View.Matches:

@@ -21,6 +21,21 @@ const ProfileDetailCard: React.FC<ProfileDetailCardProps> = ({ user }) => {
     }
   };
 
+  const handleNextPhoto = () => {
+    if (scrollRef.current) {
+        const { scrollLeft, clientWidth } = scrollRef.current;
+        scrollRef.current.scrollTo({ left: scrollLeft + clientWidth, behavior: 'smooth' });
+    }
+  };
+
+  const handlePrevPhoto = () => {
+      if (scrollRef.current) {
+          const { scrollLeft, clientWidth } = scrollRef.current;
+          scrollRef.current.scrollTo({ left: scrollLeft - clientWidth, behavior: 'smooth' });
+      }
+  };
+
+
   return (
     <div className="relative w-full h-full rounded-2xl shadow-lg bg-dark-2 select-none group">
       <div
@@ -50,6 +65,32 @@ const ProfileDetailCard: React.FC<ProfileDetailCardProps> = ({ user }) => {
         </div>
       )}
       
+       {/* Prev Button */}
+      {user.photos.length > 1 && currentPhotoIndex > 0 && (
+          <button
+              onClick={(e) => { e.stopPropagation(); handlePrevPhoto(); }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 text-white p-2 rounded-full hover:bg-black/70 transition-colors z-20"
+              aria-label="Previous photo"
+          >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+      )}
+      
+      {/* Next Button */}
+      {user.photos.length > 1 && currentPhotoIndex < user.photos.length - 1 && (
+          <button
+              onClick={(e) => { e.stopPropagation(); handleNextPhoto(); }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 text-white p-2 rounded-full hover:bg-black/70 transition-colors z-20"
+              aria-label="Next photo"
+          >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+      )}
+
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none rounded-2xl" />
       <div className="absolute bottom-0 left-0 p-6 text-white w-full">
         <h2 className="text-3xl font-bold flex items-center gap-2">

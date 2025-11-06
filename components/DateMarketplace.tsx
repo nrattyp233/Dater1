@@ -1,9 +1,12 @@
-import React, { useState, useMemo } from 'react';
+// FIX: Imported useEffect to resolve 'Cannot find name 'useEffect'' error.
+import React, { useState, useMemo, useEffect } from 'react';
 import { DatePost, User, Gender, DateCategory, LocalEvent, Business, Deal } from '../types';
 import { SkeletonLoader } from './SkeletonLoader';
 import { MapPinIcon, AlertTriangleIcon, TicketIcon, PlusIcon, BuildingIcon, StarIcon, CrownIcon } from '../constants';
 import { DATE_CATEGORIES } from '../constants';
 import type { ColorTheme } from '../constants';
+
+const PLACEHOLDER_IMAGE_URL = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=800&auto=format&fit=crop';
 
 interface DateCardProps {
     datePost: DatePost;
@@ -141,7 +144,7 @@ interface LocalEventCardProps {
 const LocalEventCard: React.FC<LocalEventCardProps> = ({ event, onCreate }) => {
     return (
         <div className="flex-shrink-0 w-72 bg-dark-2 rounded-2xl overflow-hidden border border-dark-3 shadow-lg group relative">
-            <img src={event.imageUrl} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
+            <img src={event.imageUrl?.trim() || PLACEHOLDER_IMAGE_URL} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent" />
             <div className="relative p-4 flex flex-col justify-end h-full text-white min-h-[200px]">
                 <div className="flex-grow"></div>
@@ -170,7 +173,7 @@ const BusinessCard: React.FC<BusinessCardProps> = ({ business, deals, onView }) 
     const hasDeals = deals.some(d => d.businessId === business.id);
     return (
         <button onClick={() => onView(business)} className="flex-shrink-0 w-80 bg-dark-2 rounded-2xl overflow-hidden border border-dark-3 shadow-lg group relative text-left">
-            <img src={business.photos[0]} alt={business.name} className="w-full h-full object-cover absolute inset-0" />
+            <img src={(business.photos && business.photos[0]?.trim()) || PLACEHOLDER_IMAGE_URL} alt={business.name} className="w-full h-full object-cover absolute inset-0" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent" />
             {hasDeals && (
                  <div className="absolute top-3 right-3 bg-yellow-400 text-black text-xs font-bold px-2.5 py-1 rounded-full shadow-md">
@@ -202,22 +205,29 @@ interface DateMarketplaceProps {
     localEvents: LocalEvent[];
     onCreateDateFromEvent: (event: LocalEvent) => void;
     searchLocation: string;
+    effectiveSearchLocation: string;
+    isSearchExpanded: boolean;
     onSearchLocationChange: (location: string) => void;
     isEventsLoading: boolean;
     onPremiumFeatureClick: () => void;
 }
 
-const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, businesses, deals, onToggleInterest, onPriorityInterest, currentUserId, gender, isLoading, onViewProfile, onViewBusiness, activeColorTheme, localEvents, onCreateDateFromEvent, searchLocation, onSearchLocationChange, isEventsLoading, onPremiumFeatureClick }) => {
+const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, businesses, deals, onToggleInterest, onPriorityInterest, currentUserId, gender, isLoading, onViewProfile, onViewBusiness, activeColorTheme, localEvents, onCreateDateFromEvent, searchLocation, effectiveSearchLocation, isSearchExpanded, onSearchLocationChange, isEventsLoading, onPremiumFeatureClick }) => {
     const [activeCategory, setActiveCategory] = useState<DateCategory | 'All'>('All');
-    const [tempSearch, setTempSearch] = useState('');
+    const [tempSearch, setTempSearch] = useState(searchLocation);
+    
+    useEffect(() => {
+        setTempSearch(searchLocation);
+    }, [searchLocation]);
 
     const filteredDatePosts = useMemo(() => {
+        if (!effectiveSearchLocation) return []; // Don't show any community posts if no location is set.
         return datePosts.filter(post => {
             const categoryMatch = activeCategory === 'All' || post.categories.includes(activeCategory);
-            const locationMatch = !searchLocation || post.location.toLowerCase().includes(searchLocation.toLowerCase());
+            const locationMatch = post.location.toLowerCase().includes(effectiveSearchLocation.toLowerCase());
             return categoryMatch && locationMatch;
         });
-    }, [datePosts, activeCategory, searchLocation]);
+    }, [datePosts, activeCategory, effectiveSearchLocation]);
 
     const allCategories = ['All' as const, ...Object.keys(DATE_CATEGORIES) as DateCategory[]];
     
@@ -257,7 +267,7 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
             <div className="mb-12">
                 <div className="flex items-center gap-3 mb-4">
                     <TicketIcon className="w-6 h-6 text-cyan-400" />
-                    <h3 className="text-2xl font-bold text-white capitalize">{searchLocation ? `Happening in ${searchLocation}` : 'Search a City to Find Events'}</h3>
+                    <h3 className="text-2xl font-bold text-white capitalize">{effectiveSearchLocation ? `Happening in ${effectiveSearchLocation}` : 'Search a City to Find Events'}</h3>
                 </div>
                 {isEventsLoading ? (
                     <div className="flex gap-4">
@@ -288,7 +298,7 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
             <div className="mb-12">
                 <div className="flex items-center gap-3 mb-4">
                     <BuildingIcon className="w-6 h-6 text-cyan-400" />
-                    <h3 className="text-2xl font-bold text-white">Partner Venues</h3>
+                    <h3 className="text-2xl font-bold text-white">Partner Venues {effectiveSearchLocation && `in ${effectiveSearchLocation}`}</h3>
                 </div>
                 <div className="flex gap-4 overflow-x-auto scrollbar-hide -m-2 p-2">
                    {businesses.map(business => (
@@ -298,7 +308,7 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
             </div>
 
             <div className="flex items-center gap-3 mb-4">
-                 <h3 className="text-2xl font-bold text-white">Community Date Ideas</h3>
+                 <h3 className="text-2xl font-bold text-white">Community Date Ideas {effectiveSearchLocation && `in ${effectiveSearchLocation}`}</h3>
             </div>
             <form onSubmit={handleSearch} className="mb-4 flex gap-2">
                 <div className="relative flex-grow">
@@ -322,6 +332,13 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
                     </button>
                 )}
             </form>
+            
+            {isSearchExpanded && (
+                <div className="bg-blue-900/50 text-blue-200 text-sm p-3 rounded-lg mb-4 border border-blue-700/50">
+                    Not many results found for <span className="font-bold">{searchLocation}</span>. Showing popular dates from nearby <span className="font-bold">{effectiveSearchLocation}</span> instead.
+                </div>
+            )}
+
 
              <div className="flex flex-wrap justify-center gap-2 mb-8">
                 {allCategories.map(category => (
@@ -345,37 +362,39 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
                         <DateCardSkeleton />
                         <DateCardSkeleton />
                     </>
+                ) : effectiveSearchLocation ? (
+                    filteredDatePosts.length > 0 ? (
+                        filteredDatePosts.map(post => {
+                            const isInterested = post.applicants.includes(currentUserId);
+                            const isCreator = post.createdBy === currentUserId;
+                            return (
+                                <DateCard 
+                                    key={post.id} 
+                                    datePost={post} 
+                                    allUsers={allUsers}
+                                    allBusinesses={businesses}
+                                    onToggleInterest={onToggleInterest}
+                                    onPriorityInterest={onPriorityInterest}
+                                    isInterested={isInterested}
+                                    isCreator={isCreator}
+                                    gender={gender}
+                                    onViewProfile={onViewProfile}
+                                    onViewBusiness={onViewBusiness}
+                                    currentUser={currentUser!}
+                                    onPremiumFeatureClick={onPremiumFeatureClick}
+                                />
+                            );
+                        })
+                    ) : (
+                        <div className="text-center text-gray-400 py-12">
+                            <h3 className="text-xl font-bold text-gray-300">No dates found.</h3>
+                            <p className="mt-2">Try a different location or category, or be the first to post one!</p>
+                        </div>
+                    )
                 ) : (
-                    filteredDatePosts.map(post => {
-                        const isInterested = post.applicants.includes(currentUserId);
-                        const isCreator = post.createdBy === currentUserId;
-                        return (
-                            <DateCard 
-                                key={post.id} 
-                                datePost={post} 
-                                allUsers={allUsers}
-                                allBusinesses={businesses}
-                                onToggleInterest={onToggleInterest}
-                                onPriorityInterest={onPriorityInterest}
-                                isInterested={isInterested}
-                                isCreator={isCreator}
-                                gender={gender}
-                                onViewProfile={onViewProfile}
-                                onViewBusiness={onViewBusiness}
-                                currentUser={currentUser!}
-                                onPremiumFeatureClick={onPremiumFeatureClick}
-                            />
-                        );
-                    })
-                )}
-                {!isLoading && filteredDatePosts.length === 0 && (
                     <div className="text-center text-gray-400 py-12">
-                        <h3 className="text-xl font-bold text-gray-300">No dates found.</h3>
-                        <p className="mt-2">
-                            {searchLocation 
-                                ? `Try a different location or clear the search.`
-                                : `Try a different category or check back later!`}
-                        </p>
+                        <h3 className="text-xl font-bold text-gray-300">Set a location to see dates!</h3>
+                        <p className="mt-2">Use the search bar above to find dates in your city.</p>
                     </div>
                 )}
              </div>

@@ -10,6 +10,58 @@ if (!API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: API_KEY! });
 
+export const getCityFromCoords = async (lat: number, lon: number): Promise<string> => {
+    if (!API_KEY) throw new Error("Gemini API key not configured.");
+    const prompt = `Based on these coordinates, what is the city and state? Latitude: ${lat}, Longitude: ${lon}. Respond with only the "City, ST" format (e.g., "San Francisco, CA").`;
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Error getting city from coords:", error);
+        throw new Error("Failed to determine city from coordinates.");
+    }
+};
+
+export const getNearbyMajorCity = async (location: string): Promise<string> => {
+    if (!API_KEY) throw new Error("Gemini API key not configured.");
+    const prompt = `What is the closest major metropolitan city to "${location}" that would have a lot of events and activities? Respond with only the "City, ST" format (e.g., "Denver, CO").`;
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Error getting nearby major city:", error);
+        throw new Error("Failed to determine nearby major city.");
+    }
+};
+
+export const getProfileVibe = async (user: User): Promise<string> => {
+    if (!API_KEY) throw new Error("Gemini API key not configured.");
+    const prompt = `Describe the overall "vibe" of this person in 2-4 words based on their bio and interests. For example: "Creative & Adventurous" or "Cozy bookworm". Bio: "${user.bio}", Interests: ${user.interests.join(', ')}.`;
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: { temperature: 0.7 }
+        });
+        let vibe = response.text.trim();
+        // Remove potential quotes
+        if (vibe.startsWith('"') && vibe.endsWith('"')) {
+            vibe = vibe.substring(1, vibe.length - 1);
+        }
+        return vibe;
+    } catch (error) {
+        console.error("Error getting profile vibe:", error);
+        throw new Error("Failed to get profile vibe.");
+    }
+};
+
+
 export const getRealtimeEvents = async (location: string): Promise<LocalEvent[]> => {
     if (!API_KEY) throw new Error("Gemini API key not configured.");
 
@@ -35,7 +87,16 @@ Do not include markdown formatting like \`\`\`json. Your response must be raw JS
             }
         });
 
-        const result = JSON.parse(response.text.trim());
+        // FIX: The AI can sometimes wrap the response in markdown, so we need to clean it before parsing.
+        let jsonString = response.text.trim();
+        if (jsonString.startsWith("```json")) {
+            jsonString = jsonString.substring(7, jsonString.length - 3).trim();
+        } else if (jsonString.startsWith("```")) {
+            jsonString = jsonString.substring(3, jsonString.length - 3).trim();
+        }
+
+        const result = JSON.parse(jsonString);
+
         if (!result.events) {
             return [];
         }
@@ -54,7 +115,7 @@ Do not include markdown formatting like \`\`\`json. Your response must be raw JS
         }));
         
     } catch (error) {
-        console.error("Error fetching real-time events:", error);
+        console.error("Error fetching real-time events:", error, "Raw response:", (error as any).response?.text);
         throw new Error("Failed to find local events with AI. Please try a different location.");
     }
 };
@@ -503,107 +564,63 @@ export const categorizeDatePost = async (title: string, description: string): Pr
     const availableCategories: DateCategory[] = ['Food & Drink', 'Outdoors & Adventure', 'Arts & Culture', 'Nightlife', 'Relaxing & Casual', 'Active & Fitness', 'Adult (18+)'];
     
     const prompt = `Analyze the following date idea and assign it up to two relevant categories from this list: [${availableCategories.join(', ')}].
-    
-    If the content is explicitly sexual, mature, or suggestive in a way that is inappropriate for a general audience, you MUST include the "Adult (18+)" category.
-    
-    Date Title: "${title}"
-    Date Description: "${description}"
-    
-    Return a JSON object with a "categories" key containing an array of the chosen category strings.`;
-    
+
+Date Title: "${title}"
+Date Description: "${description}"
+
+Respond with a JSON object containing a single key "categories" which is an array of the chosen category strings.`;
+
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
-                temperature: 0.2,
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.OBJECT,
                     properties: {
                         categories: {
                             type: Type.ARRAY,
-                            description: "A list of up to two relevant categories for the date idea.",
-                            items: {
-                                type: Type.STRING
-                            }
+                            items: { type: Type.STRING }
                         }
                     },
                     required: ["categories"]
                 }
             }
         });
-
         const result = JSON.parse(response.text.trim());
-        // Filter to ensure only valid categories are returned
-        return (result.categories || []).filter((cat: string) => availableCategories.includes(cat as DateCategory));
+        // Validate that the returned categories are from our allowed list
+        return result.categories.filter((c: any) => availableCategories.includes(c));
     } catch (error) {
         console.error("Error categorizing date post:", error);
         throw new Error("Failed to categorize date with AI.");
     }
 };
 
-export const getProfileVibe = async (user: User): Promise<string> => {
-  if (!API_KEY) throw new Error("Gemini API key not configured.");
-
-  const prompt = `Based on this user's profile, generate a short, snappy 'vibe' (10-15 words) that summarizes their personality for their dating profile. Make it sound cool and intriguing. Do not use hashtags.
-
-  User Profile:
-  Bio: "${user.bio}"
-  Interests: ${user.interests.join(', ')}
-
-  Return only the vibe text.`;
-
-  try {
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-            temperature: 0.8,
-            topP: 0.9,
-        }
-    });
-
-    return response.text.trim().replace(/^"|"$/g, ''); // Remove surrounding quotes if any
-  } catch (error) {
-    console.error("Error generating profile vibe:", error);
-    throw new Error("Failed to generate profile vibe with AI.");
-  }
-};
-
 export const getWingmanTip = async (currentUser: User, otherUser: User, messages: Message[]): Promise<string> => {
     if (!API_KEY) throw new Error("Gemini API key not configured.");
-
-    const conversationHistory = messages.slice(-8).map(m => {
-        const speaker = m.senderId === currentUser.id ? 'Me' : otherUser.name;
+    
+    const conversationHistory = messages.slice(-4).map(m => {
+        const speaker = m.senderId === currentUser.id ? "Me" : otherUser.name;
         return `${speaker}: ${m.text}`;
     }).join('\n');
 
-    const prompt = `You are an AI wingman and dating coach. User "${currentUser.name}" is talking to "${otherUser.name}". 
+    const prompt = `I am an AI Wingman. My user, ${currentUser.name}, is talking to ${otherUser.name}.
     
-    Their profile info:
-    - ${otherUser.name}'s Interests: ${otherUser.interests.join(', ')}
-    
-    Recent conversation:
+    Here's their recent chat:
     ${conversationHistory}
     
-    Based on the conversation, provide one short, encouraging, and actionable tip for me (${currentUser.name}) to say next. The tip should help advance the conversation naturally. Examples: "You both like hiking, suggest a trail!", "Good vibe! Ask them about their weekend.", "Time to be bold! Ask them out for that coffee."
-    
-    Keep the tip under 15 words. Return only the tip text.`;
+    Based on the last message from ${otherUser.name}, give me ONE short, actionable tip. Should I ask a question, share something about myself, or suggest a date? Be specific and encouraging. For example: "She mentioned hiking! Ask her about her favorite trail." or "Good vibe here. Time to suggest grabbing that coffee you both like."`;
     
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
-            config: {
-                temperature: 0.9,
-                topP: 0.95,
-                thinkingConfig: { thinkingBudget: 0 }
-            }
+            config: { temperature: 0.8 }
         });
         return response.text.trim();
     } catch (error) {
-        console.error("Error generating wingman tip:", error);
-        throw new Error("Failed to generate wingman tip with AI.");
+        console.error("Error getting wingman tip:", error);
+        throw new Error("Wingman is unavailable right now.");
     }
 };
