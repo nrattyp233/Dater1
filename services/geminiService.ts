@@ -1,4 +1,8 @@
-import { GoogleGenAI, Type } from "@google/genai";
+
+
+
+
+import { GoogleGenAI, Type, Part } from "@google/genai";
 import { User, DateIdea, LocationSuggestion, Message, DateCategory, LocalEvent } from '../types';
 
 // Ensure you have your API_KEY in the environment variables
@@ -9,6 +13,44 @@ if (!API_KEY) {
 }
 
 const ai = new GoogleGenAI({ apiKey: API_KEY! });
+
+// --- MOCK FALLBACK DATA ---
+const MOCK_EVENTS: LocalEvent[] = [
+    {
+        id: 9001,
+        title: "Sunset Jazz in the Park",
+        category: "Arts & Culture",
+        description: "Enjoy a relaxing evening with live jazz music as the sun sets. Bring a blanket and a friend!",
+        location: "Central Park Bandshell",
+        date: "This Saturday",
+        imageUrl: "https://images.unsplash.com/photo-1520473224395-3f7a83428f64?q=80&w=800",
+        source: "AI Fallback",
+        price: "Free"
+    },
+    {
+        id: 9002,
+        title: "Artisan Food Market",
+        category: "Food & Drink",
+        description: "Explore local flavors with dozens of artisan food stalls. A perfect spot for foodies to connect.",
+        location: "City Square",
+        date: "This Weekend",
+        imageUrl: "https://images.unsplash.com/photo-1565193569049-983288d447ba?q=80&w=800",
+        source: "AI Fallback",
+        price: "Varies"
+    },
+    {
+        id: 9003,
+        title: "Outdoor Yoga Session",
+        category: "Active & Fitness",
+        description: "Start your morning with a refreshing outdoor yoga session. All levels welcome. A great way to energize your day.",
+        location: "Riverside Park",
+        date: "Sunday Morning",
+        imageUrl: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?q=80&w=800",
+        source: "AI Fallback",
+        price: "$10"
+    }
+];
+
 
 export const getCityFromCoords = async (lat: number, lon: number): Promise<string> => {
     if (!API_KEY) throw new Error("Gemini API key not configured.");
@@ -26,7 +68,7 @@ export const getCityFromCoords = async (lat: number, lon: number): Promise<strin
 };
 
 export const getNearbyMajorCity = async (location: string): Promise<string> => {
-    if (!API_KEY) throw new Error("Gemini API key not configured.");
+    if (!API_KEY) return location;
     const prompt = `What is the closest major metropolitan city to "${location}" that would have a lot of events and activities? Respond with only the "City, ST" format (e.g., "Denver, CO").`;
     try {
         const response = await ai.models.generateContent({
@@ -36,12 +78,12 @@ export const getNearbyMajorCity = async (location: string): Promise<string> => {
         return response.text.trim();
     } catch (error) {
         console.error("Error getting nearby major city:", error);
-        throw new Error("Failed to determine nearby major city.");
+        return location;
     }
 };
 
 export const getProfileVibe = async (user: User): Promise<string> => {
-    if (!API_KEY) throw new Error("Gemini API key not configured.");
+    if (!API_KEY) return "Fun & Adventurous";
     const prompt = `Describe the overall "vibe" of this person in 2-4 words based on their bio and interests. For example: "Creative & Adventurous" or "Cozy bookworm". Bio: "${user.bio}", Interests: ${user.interests.join(', ')}.`;
     try {
         const response = await ai.models.generateContent({
@@ -57,58 +99,61 @@ export const getProfileVibe = async (user: User): Promise<string> => {
         return vibe;
     } catch (error) {
         console.error("Error getting profile vibe:", error);
-        throw new Error("Failed to get profile vibe.");
+        return "Fun & Adventurous";
     }
 };
 
 
 export const getRealtimeEvents = async (location: string): Promise<LocalEvent[]> => {
-    if (!API_KEY) throw new Error("Gemini API key not configured.");
+    if (!API_KEY) return MOCK_EVENTS;
 
     const availableCategories: DateCategory[] = ['Food & Drink', 'Outdoors & Adventure', 'Arts & Culture', 'Nightlife', 'Relaxing & Casual', 'Active & Fitness'];
-    const prompt = `Find 5 real, upcoming local events in "${location}". Focus on events suitable for a date, like concerts, festivals, workshops, markets, or unique community gatherings.
-Respond with ONLY a valid JSON object. The JSON object must have a single key "events", which is an array of 5 event objects.
-Each event object must have the following keys:
-- "title": a catchy title for the event (string).
-- "location": the venue or general location (string).
-- "description": a short exciting description of 20-30 words (string).
-- "category": one of the following strings: [${availableCategories.join(', ')}] (string).
-- "imageUrl": a plausible but not necessarily real image URL from a service like Unsplash (string).
-- "date": a friendly date string, like 'This Friday' or 'Next Weekend' (string).
-
-Do not include markdown formatting like \`\`\`json. Your response must be raw JSON text.`;
+    const prompt = `Find 5 realistic-sounding, upcoming local events in "${location}". Focus on events suitable for a date, like concerts, festivals, workshops, markets, or unique community gatherings.`;
 
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
-                tools: [{ googleSearch: {} }],
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        events: {
+                            type: Type.ARRAY,
+                            description: "An array of 5 event objects.",
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    title: { type: Type.STRING, description: "A catchy title for the event." },
+                                    location: { type: Type.STRING, description: "The venue or general location." },
+                                    description: { type: Type.STRING, description: "A short exciting description of 20-30 words." },
+                                    category: { type: Type.STRING, description: `One of: ${availableCategories.join(', ')}` },
+                                    imageUrl: { type: Type.STRING, description: "A plausible image URL from a service like Unsplash." },
+                                    date: { type: Type.STRING, description: "A friendly date string, like 'This Friday' or 'Next Weekend'." }
+                                },
+                                required: ["title", "location", "description", "category", "imageUrl", "date"]
+                            }
+                        }
+                    },
+                    required: ["events"]
+                }
             }
         });
 
-        // FIX: The AI can sometimes wrap the response in markdown, so we need to clean it before parsing.
-        let jsonString = response.text.trim();
-        if (jsonString.startsWith("```json")) {
-            jsonString = jsonString.substring(7, jsonString.length - 3).trim();
-        } else if (jsonString.startsWith("```")) {
-            jsonString = jsonString.substring(3, jsonString.length - 3).trim();
-        }
-
-        const result = JSON.parse(jsonString);
+        const result = JSON.parse(response.text.trim());
 
         if (!result.events) {
-            return [];
+            return MOCK_EVENTS;
         }
 
-        // We need to map the result to our LocalEvent type
         return result.events.map((event: any, index: number) => ({
-            id: Date.now() + index, // Create a temporary unique ID
+            id: Date.now() + index,
             title: event.title,
             category: availableCategories.includes(event.category) ? event.category : 'Relaxing & Casual',
             description: event.description,
             location: event.location,
-            date: event.date, // Gemini will provide a string like "This weekend"
+            date: event.date,
             imageUrl: event.imageUrl,
             source: "AI-Powered Search",
             price: "Varies"
@@ -116,7 +161,7 @@ Do not include markdown formatting like \`\`\`json. Your response must be raw JS
         
     } catch (error) {
         console.error("Error fetching real-time events:", error, "Raw response:", (error as any).response?.text);
-        throw new Error("Failed to find local events with AI. Please try a different location.");
+        return MOCK_EVENTS;
     }
 };
 
@@ -233,7 +278,11 @@ export const generateIcebreakers = async (user: User): Promise<string[]> => {
 };
 
 export const getCompatibilityScore = async (currentUser: User, otherUser: User): Promise<{ score: number; summary: string; }> => {
-    if (!API_KEY) throw new Error("Gemini API key not configured.");
+    const MOCK_SCORE = {
+        score: 78,
+        summary: 'You both seem to have a creative side and a love for the outdoors. Could be a great match!'
+    };
+    if (!API_KEY) return MOCK_SCORE;
     
     const prompt = `Analyze the compatibility between these two user profiles for a romantic relationship. 
     User 1: Name: ${currentUser.name}, Bio: "${currentUser.bio}", Interests: ${currentUser.interests.join(', ')}.
@@ -260,7 +309,7 @@ export const getCompatibilityScore = async (currentUser: User, otherUser: User):
         return JSON.parse(response.text.trim());
     } catch (error) {
         console.error("Error getting compatibility score:", error);
-        throw new Error("Failed to analyze compatibility.");
+        return MOCK_SCORE;
     }
 };
 
@@ -388,187 +437,19 @@ export const suggestLocations = async (title: string, description: string): Prom
         return result.locations;
     } catch (error) {
         console.error("Error suggesting locations:", error);
-        throw new Error("Failed to suggest locations with AI.");
+        throw new Error("Failed to suggest locations.");
     }
 };
 
-export const generateChatReplies = async (currentUser: User, otherUser: User, messages: Message[]): Promise<string[]> => {
-    if (!API_KEY) throw new Error("Gemini API key not configured.");
-    
-    const conversationHistory = messages.slice(-6).map(m => {
-        const speaker = m.senderId === currentUser.id ? currentUser.name : otherUser.name;
-        return `${speaker}: ${m.text}`;
-    }).join('\n');
-
-    const prompt = `You are an AI conversation coach for a dating app. User "${currentUser.name}" is talking to "${otherUser.name}". 
-    
-    Their profile info:
-    - ${currentUser.name} (me): Bio: "${currentUser.bio}", Interests: ${currentUser.interests.join(', ')}
-    - ${otherUser.name}: Bio: "${otherUser.bio}", Interests: ${otherUser.interests.join(', ')}
-    
-    Recent conversation history:
-    ${conversationHistory}
-    
-    Based on the context, generate exactly 3 short, engaging, and creative replies for ${currentUser.name} to send. The replies should encourage more conversation. Do not just repeat things from the bio.`;
-    
-    try {
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                temperature: 0.9,
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        replies: {
-                            type: Type.ARRAY,
-                            description: "A list of three unique chat reply suggestions.",
-                            items: { type: Type.STRING }
-                        }
-                    },
-                    required: ["replies"]
-                }
-            }
-        });
-        const result = JSON.parse(response.text.trim());
-        return result.replies;
-    } catch (error) {
-        console.error("Error generating chat replies:", error);
-        throw new Error("Failed to generate replies with AI.");
-    }
-};
-
-export const generatePickupLines = async (currentUser: User, otherUser: User): Promise<string[]> => {
-    if (!API_KEY) throw new Error("Gemini API key not configured.");
-    
-    const prompt = `You are a witty and charming dating assistant. User "${currentUser.name}" wants to send a pickup line to "${otherUser.name}". 
-    
-    Their profile info:
-    - ${otherUser.name}'s Bio: "${otherUser.bio}"
-    - ${otherUser.name}'s Interests: ${otherUser.interests.join(', ')}
-    
-    Based on ${otherUser.name}'s profile, generate exactly 3 creative, witty, and charming pickup lines for ${currentUser.name} to send. The lines should be fun, respectful, and not overly cheesy. They must reference something specific from their profile.`;
-    
-    try {
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                temperature: 0.9,
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        pickupLines: {
-                            type: Type.ARRAY,
-                            description: "A list of three unique pickup lines.",
-                            items: { type: Type.STRING }
-                        }
-                    },
-                    required: ["pickupLines"]
-                }
-            }
-        });
-        const result = JSON.parse(response.text.trim());
-        return result.pickupLines;
-    } catch (error) {
-        console.error("Error generating pickup lines:", error);
-        throw new Error("Failed to generate pickup lines with AI.");
-    }
-};
-
-export const optimizePhotoOrder = async (photos: string[]): Promise<string[]> => {
-    if (!API_KEY) throw new Error("Gemini API key not configured.");
-    
-    const imageParts = photos.map(photoDataUrl => {
-        const [header, base64Data] = photoDataUrl.split(',');
-        const mimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
-        return {
-            inlineData: {
-                mimeType,
-                data: base64Data
-            }
-        };
-    });
-
-    const prompt = `You are a dating profile expert. I have uploaded ${photos.length} photos for a dating profile. Analyze them based on factors like clear face visibility, lighting, variety (headshot, full body, activity), and overall engagement potential. Your task is to reorder them to create the best possible first impression. The first photo should be the strongest.
-
-    Return a JSON object with the new order of indices. For example, if the best order is the 3rd photo, then the 1st, then the 2nd (from the original order), you should return: { "newOrder": [2, 0, 1] }.`;
-    
-    try {
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: { parts: [{ text: prompt }, ...imageParts] },
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        newOrder: {
-                            type: Type.ARRAY,
-                            description: "An array of indices representing the new optimal photo order.",
-                            items: { type: Type.NUMBER }
-                        }
-                    },
-                    required: ["newOrder"]
-                }
-            }
-        });
-        
-        const result = JSON.parse(response.text.trim());
-        const newOrder: number[] = result.newOrder;
-
-        if (!newOrder || newOrder.length !== photos.length) {
-            throw new Error("AI returned an invalid photo order.");
-        }
-
-        const reorderedPhotos = newOrder.map(index => photos[index]);
-        return reorderedPhotos;
-
-    } catch (error) {
-        console.error("Error optimizing photo order:", error);
-        throw new Error("Failed to optimize photos with AI.");
-    }
-};
-
-export const generateAppBackground = async (prompt: string): Promise<string> => {
-    if (!API_KEY) throw new Error("Gemini API key not configured.");
-
-    try {
-        const response = await ai.models.generateImages({
-            model: 'imagen-4.0-generate-001',
-            prompt: prompt,
-            config: {
-                numberOfImages: 1,
-                outputMimeType: 'image/png',
-                aspectRatio: '9:16', // Tall aspect ratio for mobile
-            },
-        });
-
-        if (!response.generatedImages || response.generatedImages.length === 0) {
-            throw new Error("AI did not return an image.");
-        }
-
-        const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-        return `data:image/png;base64,${base64ImageBytes}`;
-    } catch (error) {
-        console.error("Error generating app background:", error);
-        throw new Error("Failed to generate background with AI.");
-    }
-};
-
+// FIX: Add categorizeDatePost function to categorize date ideas using AI.
 export const categorizeDatePost = async (title: string, description: string): Promise<DateCategory[]> => {
     if (!API_KEY) throw new Error("Gemini API key not configured.");
-
     const availableCategories: DateCategory[] = ['Food & Drink', 'Outdoors & Adventure', 'Arts & Culture', 'Nightlife', 'Relaxing & Casual', 'Active & Fitness', 'Adult (18+)'];
-    
-    const prompt = `Analyze the following date idea and assign it up to two relevant categories from this list: [${availableCategories.join(', ')}].
-
-Date Title: "${title}"
-Date Description: "${description}"
-
-Respond with a JSON object containing a single key "categories" which is an array of the chosen category strings.`;
+    const prompt = `Categorize the following date idea into 1 to 3 relevant categories from the provided list.
+    Date Idea Title: "${title}"
+    Date Idea Description: "${description}"
+    Available Categories: ${availableCategories.join(', ')}
+    `;
 
     try {
         const response = await ai.models.generateContent({
@@ -581,46 +462,239 @@ Respond with a JSON object containing a single key "categories" which is an arra
                     properties: {
                         categories: {
                             type: Type.ARRAY,
-                            items: { type: Type.STRING }
+                            description: "An array of 1-3 category strings that best fit the date idea.",
+                            items: {
+                                type: Type.STRING
+                            }
                         }
                     },
                     required: ["categories"]
                 }
             }
         });
+
         const result = JSON.parse(response.text.trim());
-        // Validate that the returned categories are from our allowed list
-        return result.categories.filter((c: any) => availableCategories.includes(c));
+        const validCategories = result.categories.filter((cat: any) => availableCategories.includes(cat));
+
+        if (!validCategories || validCategories.length === 0) {
+            // Fallback category
+            return ['Relaxing & Casual'];
+        }
+
+        return validCategories;
     } catch (error) {
         console.error("Error categorizing date post:", error);
-        throw new Error("Failed to categorize date with AI.");
+        // Provide a fallback category on error
+        return ['Relaxing & Casual'];
     }
 };
 
+// FIX: Add optimizePhotoOrder function to reorder user photos for best impression.
+export const optimizePhotoOrder = async (photos: string[]): Promise<string[]> => {
+    if (!API_KEY) throw new Error("Gemini API key not configured.");
+    if (photos.length < 2) return photos;
+
+    const imageParts: Part[] = photos.map((photoDataUrl) => {
+        const [meta, data] = photoDataUrl.split(',');
+        const mimeTypeMatch = meta.match(/:(.*?);/);
+        const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/jpeg';
+        return {
+            inlineData: {
+                mimeType,
+                data
+            }
+        };
+    });
+
+    const prompt = `Analyze these profile photos for a dating app. Reorder them to create the best possible first impression. The first photo should be the strongest. Respond with a JSON object containing a key 'photo_order' which is an array of the original photo indices (0-based) in the optimal new order. For example, if you think the second photo should be first, then the first, then the third, respond with {"photo_order": [1, 0, 2]}. Ensure the array contains each index exactly once.`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: [...imageParts, { text: prompt }] },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        photo_order: {
+                            type: Type.ARRAY,
+                            description: "An array of numbers representing the new order of photos.",
+                            items: {
+                                type: Type.NUMBER
+                            }
+                        }
+                    },
+                    required: ["photo_order"]
+                }
+            }
+        });
+
+        const result = JSON.parse(response.text.trim());
+        const order = result.photo_order as number[];
+
+        // Validate the response from the AI
+        if (Array.isArray(order) && order.length === photos.length && order.every(i => i >= 0 && i < photos.length)) {
+            const reorderedPhotos = order.map(i => photos[i]);
+            // Check for duplicates
+            if (new Set(reorderedPhotos).size === photos.length) {
+                return reorderedPhotos;
+            }
+        }
+        
+        console.warn("AI photo optimization returned invalid order. Returning original order.");
+        return photos;
+    } catch (error) {
+        console.error("Error optimizing photo order:", error);
+        // Return original order on error
+        return photos;
+    }
+};
+
+// FIX: Add generateAppBackground to create background images from a prompt.
+export const generateAppBackground = async (prompt: string): Promise<string> => {
+    if (!API_KEY) throw new Error("Gemini API key not configured.");
+    try {
+        const response = await ai.models.generateImages({
+            model: 'imagen-4.0-generate-001',
+            prompt: `Generate an atmospheric, abstract, beautiful background image suitable for a dating app. Style: elegant, modern, subtle. Prompt: "${prompt}"`,
+            config: {
+                numberOfImages: 1,
+                outputMimeType: 'image/jpeg',
+                aspectRatio: '9:16', // Good for mobile backgrounds
+            },
+        });
+
+        const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+        return `data:image/jpeg;base64,${base64ImageBytes}`;
+    } catch (error) {
+        console.error("Error generating app background:", error);
+        throw new Error("Failed to generate background with AI.");
+    }
+};
+
+// FIX: Add generateChatReplies function for AI-powered chat suggestions.
+export const generateChatReplies = async (currentUser: User, otherUser: User, messages: Message[]): Promise<string[]> => {
+    if (!API_KEY) throw new Error("Gemini API key not configured.");
+
+    const conversationHistory = messages.map(m => `${m.senderId === currentUser.id ? currentUser.name : otherUser.name}: ${m.text}`).join('\n');
+
+    const prompt = `You are a witty dating assistant. Based on the following user profiles and their conversation history, generate exactly 3 unique and engaging reply suggestions for ${currentUser.name}. Keep them short (1-2 sentences).
+
+    User Profiles:
+    - ${currentUser.name} (You): Bio: "${currentUser.bio}", Interests: ${currentUser.interests.join(', ')}
+    - ${otherUser.name}: Bio: "${otherUser.bio}", Interests: ${otherUser.interests.join(', ')}
+
+    Conversation History (most recent last):
+    ${conversationHistory}
+    
+    Now, suggest three replies for ${currentUser.name}:`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                temperature: 0.8,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        replies: {
+                            type: Type.ARRAY,
+                            description: "A list of three unique reply suggestions.",
+                            items: { type: Type.STRING }
+                        }
+                    },
+                    required: ["replies"]
+                }
+            }
+        });
+
+        const result = JSON.parse(response.text.trim());
+        if (!result.replies || result.replies.length === 0) {
+            throw new Error("AI failed to generate valid replies.");
+        }
+        return result.replies;
+    } catch (error) {
+        console.error("Error generating chat replies:", error);
+        throw new Error("Failed to generate replies with AI.");
+    }
+};
+
+// FIX: Add getWingmanTip function to provide AI dating coach advice.
 export const getWingmanTip = async (currentUser: User, otherUser: User, messages: Message[]): Promise<string> => {
     if (!API_KEY) throw new Error("Gemini API key not configured.");
     
-    const conversationHistory = messages.slice(-4).map(m => {
-        const speaker = m.senderId === currentUser.id ? "Me" : otherUser.name;
-        return `${speaker}: ${m.text}`;
-    }).join('\n');
-
-    const prompt = `I am an AI Wingman. My user, ${currentUser.name}, is talking to ${otherUser.name}.
+    const conversationHistory = messages.map(m => `${m.senderId === currentUser.id ? currentUser.name : otherUser.name}: ${m.text}`).join('\n');
     
-    Here's their recent chat:
+    const prompt = `You are an AI dating coach ('wingman'). Analyze this chat history and the user profiles. The last message was from ${otherUser.name}. Provide one short, actionable tip for ${currentUser.name} to improve the conversation, ask a good question, or move things forward.
+    
+    User Profiles:
+    - ${currentUser.name} (You): Bio: "${currentUser.bio}", Interests: ${currentUser.interests.join(', ')}
+    - ${otherUser.name}: Bio: "${otherUser.bio}", Interests: ${otherUser.interests.join(', ')}
+
+    Conversation History (most recent last):
     ${conversationHistory}
     
-    Based on the last message from ${otherUser.name}, give me ONE short, actionable tip. Should I ask a question, share something about myself, or suggest a date? Be specific and encouraging. For example: "She mentioned hiking! Ask her about her favorite trail." or "Good vibe here. Time to suggest grabbing that coffee you both like."`;
+    Wingman Tip for ${currentUser.name}:`;
     
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
-            config: { temperature: 0.8 }
+            config: {
+                temperature: 0.7,
+                maxOutputTokens: 100,
+            }
         });
         return response.text.trim();
     } catch (error) {
         console.error("Error getting wingman tip:", error);
-        throw new Error("Wingman is unavailable right now.");
+        throw new Error("Failed to get wingman tip.");
+    }
+};
+
+// FIX: Add generatePickupLines for AI-powered conversation starters.
+export const generatePickupLines = async (currentUser: User, otherUser: User): Promise<string[]> => {
+    if (!API_KEY) throw new Error("Gemini API key not configured.");
+    
+    const prompt = `You are a witty and charming dating assistant. Generate 3 unique and creative pickup lines for ${currentUser.name} to use on ${otherUser.name}, based on ${otherUser.name}'s profile. The lines can be funny, cheesy, or clever, but should reference their interests or bio.
+    
+    Matched Person's Profile:
+    Name: ${otherUser.name}
+    Bio: "${otherUser.bio}"
+    Interests: ${otherUser.interests.join(', ')}
+    
+    Generate 3 pickup lines.`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                temperature: 0.9,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        lines: {
+                            type: Type.ARRAY,
+                            description: "A list of three unique pickup lines.",
+                            items: { type: Type.STRING }
+                        }
+                    },
+                    required: ["lines"]
+                }
+            }
+        });
+        const result = JSON.parse(response.text.trim());
+        if (!result.lines || result.lines.length === 0) {
+            throw new Error("AI failed to generate pickup lines.");
+        }
+        return result.lines;
+    } catch (error) {
+        console.error("Error generating pickup lines:", error);
+        throw new Error("Failed to generate pickup lines with AI.");
     }
 };

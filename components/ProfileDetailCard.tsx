@@ -92,24 +92,24 @@ const ProfileDetailCard: React.FC<ProfileDetailCardProps> = ({ user }) => {
       )}
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none rounded-2xl" />
-      <div className="absolute bottom-0 left-0 p-6 text-white w-full">
-        <h2 className="text-3xl font-bold flex items-center gap-2">
-            <span>{user.name}, {user.age}</span>
-            {user.isVerified && <CheckCircleIcon className="w-7 h-7 text-blue-400" />}
-        </h2>
-        <p className="mt-2 text-light-2">{user.bio}</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {user.interests.map(interest => (
-            <span key={interest} className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">{interest}</span>
-          ))}
-        </div>
-         {user.earnedBadgeIds && user.earnedBadgeIds.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-white/20 flex flex-wrap gap-3">
-              {user.earnedBadgeIds.map(badgeId => (
-                <BadgeDisplay key={badgeId} badgeId={badgeId} />
-              ))}
-            </div>
-        )}
+      <div className="absolute bottom-0 left-0 right-0 p-6 text-white pointer-events-none">
+          <h2 className="text-3xl font-bold flex items-center gap-2">
+              <span>{user.name}, {user.age}</span>
+              {user.isVerified && <CheckCircleIcon className="w-7 h-7 text-blue-400" />}
+          </h2>
+          <p className="mt-2 text-light-2">{user.bio}</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {user.interests.map(interest => (
+              <span key={interest} className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">{interest}</span>
+            ))}
+          </div>
+           {user.earnedBadgeIds && user.earnedBadgeIds.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-white/20 flex flex-wrap gap-3">
+                {user.earnedBadgeIds.map(badgeId => (
+                  <BadgeDisplay key={badgeId} badgeId={badgeId} />
+                ))}
+              </div>
+          )}
       </div>
     </div>
   );
