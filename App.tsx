@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useReducer, useRef } from 'rea
 import { View, User, DatePost, Message, LocalEvent, Business, Deal } from './types';
 import { colorThemes, ColorTheme, BADGES } from './constants';
 import * as api from './services/api';
-import { getCityFromCoords, getNearbyMajorCity } from './services/geminiService';
+// Import the geminiService functions that were moved to the edge function
+import { callGeminiFunction } from './services/geminiService';
 import { useToast, ToastProvider } from './contexts/ToastContext';
 import { onAuthStateChange, getCurrentUser, getSession, signOut } from './services/supabaseClient';
 
@@ -262,10 +263,11 @@ const MainApp: React.FC = () => {
         });
       });
       
-      const city = await getCityFromCoords(
-        position.coords.latitude,
-        position.coords.longitude
-      );
+      // Call the edge function to get city from coordinates
+      const city = await callGeminiFunction('getCityFromCoords', {
+        lat: position.coords.latitude,
+        lon: position.coords.longitude
+      });
       
       showToast(`Location found! Showing local dates for ${city}.`, 'info');
       updateState({ 
@@ -343,72 +345,23 @@ const MainApp: React.FC = () => {
           isSearchExpanded: false
         });
       }
-    } catch (error) {
-      handleError(error, 'Failed to load local data. Please try another location.');
+    } else {
+      // 5. Sufficient Results, No Expansion Needed
       updateState({
-        localEvents: [],
+        localEvents: initialEvents,
         effectiveSearchLocation: searchLocation,
         isSearchExpanded: false
       });
-    } finally {
-      updateLoading({ isEventsLoading: false });
     }
-  }, [searchLocation, isAuthenticated, datePosts, showToast, handleError, updateLoading, updateState]);
-  
-  // Handle authentication state changes
-  useEffect(() => {
-    // Set up the auth state listener
-    authListener.current = onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session);
-      
-      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-        try {
-          // Get the current user and session
-          const user = await getCurrentUser();
-          const currentSession = await getSession();
-          
-          if (user && currentSession) {
-            // Update the app state with the authenticated user
-            updateState({
-              isAuthenticated: true,
-              currentUser: {
-                id: user.id,
-                email: user.email || '',
-                name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-                // Add other user properties from your user_metadata or user table
-                ...user.user_metadata,
-              } as User
-            });
-            
-            // Fetch user-specific data
-            fetchInitialData();
-          } else {
-            updateState({ isAuthenticated: false, currentUser: null });
-          }
-        } catch (error) {
-          console.error('Error handling auth state change:', error);
-          updateState({ isAuthenticated: false, currentUser: null });
-        }
-      } else if (event === 'SIGNED_OUT') {
-        updateState({
-          isAuthenticated: false,
-          currentUser: null,
-          // Reset other state as needed
-          users: [],
-          datePosts: [],
-          messages: [],
-          matches: [],
-          swipedLeftIds: [],
-          swipedRightIds: [],
-          localEvents: [],
-          businesses: [],
-          deals: [],
-        });
-      }
-      
-      // Update loading state after auth check
-      updateLoading({ isLoading: false });
+  } catch (error) {
+    handleError(error, 'Failed to load local data. Please try another location.');
+    updateState({
+      localEvents: [],
+      effectiveSearchLocation: searchLocation,
+      isSearchExpanded: false
     });
+  } finally {
+    updateLoading({ isEventsLoading: false });
     
     // Clean up the listener when the component unmounts
     return () => {
@@ -419,7 +372,7 @@ const MainApp: React.FC = () => {
   }, [updateState, updateLoading]);
   
   // Handle initial data fetching after authentication
-  const fetchInitialData = useCallback(async () => {
+  const fetchInitialDataAfterAuth = useCallback(async () => {
     if (!state.currentUser) return;
     
     try {
@@ -464,7 +417,7 @@ const MainApp: React.FC = () => {
   }, [state.currentUser, updateState, updateLoading, showToast]);
   
   // Get user location when authenticated
-  const getUserLocation = useCallback(async () => {
+  const getUserLocationAfterAuth = useCallback(async () => {
     if (!navigator.geolocation) {
       showToast("Geolocation is not supported by your browser. Please search for a city.", 'info');
       return;
