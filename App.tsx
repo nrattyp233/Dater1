@@ -1,535 +1,747 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { View, User, DatePost, Message, Badge, LocalEvent, Business, Deal } from './types';
-import { CURRENT_USER_ID, colorThemes, ColorTheme, BADGES } from './constants';
+import React, { useState, useEffect, useCallback, useReducer, useRef } from 'react';
+import { View, User, DatePost, Message, LocalEvent, Business, Deal } from './types';
+import { colorThemes, ColorTheme, BADGES } from './constants';
 import * as api from './services/api';
-import { categorizeDatePost, getCityFromCoords, getNearbyMajorCity } from './services/geminiService';
+import { getCityFromCoords, getNearbyMajorCity } from './services/geminiService';
 import { useToast, ToastProvider } from './contexts/ToastContext';
+import { onAuthStateChange, getCurrentUser, getSession, signOut } from './services/supabaseClient';
 
-import Header from './components/Header';
-import SwipeDeck from './components/SwipeDeck';
-import DateMarketplace from './components/DateMarketplace';
-import CreateDateForm from './components/CreateDateForm';
-import MyDatesManager from './components/MyDatesManager';
-import ProfileSettings from './components/ProfileSettings';
-import MatchesView from './components/MatchesView';
-import ChatView from './components/ChatView';
-import ProfileModal from './components/ProfileModal';
-import IcebreakerModal from './components/IcebreakerModal';
-import ProfileFeedbackModal from './components/ProfileFeedbackModal';
-import DatePlannerModal from './components/DatePlannerModal';
-import MonetizationModal from './components/MonetizationModal';
-import Auth from './components/Auth';
-import BusinessSignupForm from './components/BusinessSignupForm';
-import BusinessDetailModal from './components/BusinessDetailModal';
-import LeaderboardView from './components/LeaderboardView';
+// Lazy load components for better performance
+const Header = React.lazy(() => import('./components/Header'));
+const SwipeDeck = React.lazy(() => import('./components/SwipeDeck'));
+const DateMarketplace = React.lazy(() => import('./components/DateMarketplace'));
+const CreateDateForm = React.lazy(() => import('./components/CreateDateForm'));
+const MyDatesManager = React.lazy(() => import('./components/MyDatesManager'));
+const ProfileSettings = React.lazy(() => import('./components/ProfileSettings'));
+const MatchesView = React.lazy(() => import('./components/MatchesView'));
+const ChatView = React.lazy(() => import('./components/ChatView'));
+const ProfileModal = React.lazy(() => import('./components/ProfileModal'));
+const IcebreakerModal = React.lazy(() => import('./components/IcebreakerModal'));
+const ProfileFeedbackModal = React.lazy(() => import('./components/ProfileFeedbackModal'));
+const DatePlannerModal = React.lazy(() => import('./components/DatePlannerModal'));
+const MonetizationModal = React.lazy(() => import('./components/MonetizationModal'));
+const Auth = React.lazy(() => import('./components/Auth'));
+const BusinessSignupForm = React.lazy(() => import('./components/BusinessSignupForm'));
+const BusinessDetailModal = React.lazy(() => import('./components/BusinessDetailModal'));
+const LeaderboardView = React.lazy(() => import('./components/LeaderboardView'));
 
-const MainApp: React.FC = () => {
-    const [isAuthenticated, setIsAuthenticated] = useState(true);
-    const [currentView, setCurrentView] = useState<View>(View.Swipe);
-    const [users, setUsers] = useState<User[]>([]);
-    const [datePosts, setDatePosts] = useState<DatePost[]>([]);
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [matches, setMatches] = useState<number[]>([]);
-    const [swipedLeftIds, setSwipedLeftIds] = useState<number[]>([]);
-    const [swipedRightIds, setSwipedRightIds] = useState<number[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [lastSwipedUserId, setLastSwipedUserId] = useState<number | null>(null);
-    const { showToast } = useToast();
-    
-    // State for dynamic color theme
-    const [activeColorTheme, setActiveColorTheme] = useState<ColorTheme>(colorThemes[0]);
-    const lastColorIndex = useRef(0);
+// Loading component
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+  </div>
+);
 
-    // State for customizable app background
-    const [appBackground, setAppBackground] = useState<string | null>(null);
-
-    // State for local events and location search
-    const [localEvents, setLocalEvents] = useState<LocalEvent[]>([]);
-    const [searchLocation, setSearchLocation] = useState('');
-    const [effectiveSearchLocation, setEffectiveSearchLocation] = useState('');
-    const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-    const [isEventsLoading, setIsEventsLoading] = useState(false);
-    const [eventForDate, setEventForDate] = useState<LocalEvent | null>(null);
-    
-    // State for business features
-    const [businesses, setBusinesses] = useState<Business[]>([]);
-    const [deals, setDeals] = useState<Deal[]>([]); // Assuming we might fetch all deals at once
-    const [isBusinessLoading, setIsBusinessLoading] = useState(true);
-    const [businessForDate, setBusinessForDate] = useState<{ business: Business; deal?: Deal } | null>(null);
-
-    // State for modals, centralized here
-    const [selectedUserForModal, setSelectedUserForModal] = useState<User | null>(null);
-    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-    const [isIcebreakerModalOpen, setIsIcebreakerModalOpen] = useState(false);
-    const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
-    const [isDatePlannerModalOpen, setIsDatePlannerModalOpen] = useState(false);
-    const [usersForDatePlanning, setUsersForDatePlanning] = useState<[User, User] | null>(null);
-    const [isMonetizationModalOpen, setIsMonetizationModalOpen] = useState(false);
-    const [selectedBusinessForModal, setSelectedBusinessForModal] = useState<Business | null>(null);
-    const [isBusinessModalOpen, setIsBusinessModalOpen] = useState(false);
-
-
-    useEffect(() => {
-        const fetchInitialData = async () => {
-            try {
-                setIsLoading(true);
-                setIsBusinessLoading(true);
-                const savedBackground = localStorage.getItem('appBackground');
-                if (savedBackground) setAppBackground(savedBackground);
-
-                // Attempt to get user's location
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        async (position) => {
-                            try {
-                                const city = await getCityFromCoords(
-                                    position.coords.latitude,
-                                    position.coords.longitude
-                                );
-                                showToast(`Location found! Showing local dates for ${city}.`, 'info');
-                                setSearchLocation(city);
-                            } catch (geoError) {
-                                console.error("Reverse geocoding failed:", geoError);
-                                showToast("Could not determine city from your location. Please search manually.", 'info');
-                            }
-                        },
-                        (error) => {
-                            console.warn(`Geolocation error: ${error.message}`);
-                            showToast("Could not get your location. Please search for a city.", 'info');
-                        }
-                    );
-                } else {
-                    showToast("Geolocation is not supported by your browser. Please search for a city.", 'info');
-                }
-
-                const [
-                    fetchedUsers, 
-                    fetchedDatePosts, 
-                    fetchedMessages, 
-                    fetchedMatches,
-                    fetchedSwipedLeftIds,
-                    fetchedBusinesses,
-                    // In a real app, you might fetch deals per business, but for mock it's ok
-                    fetchedDeals
-                ] = await Promise.all([
-                    api.getUsers(), 
-                    api.getDatePosts(), 
-                    api.getMessages(),
-                    api.getMatches(CURRENT_USER_ID),
-                    api.getSwipedLeftIds(CURRENT_USER_ID),
-                    api.getBusinesses(),
-                    api.getDealsForBusiness(0), // Dummy call to get all deals
-                ]);
-                setUsers(fetchedUsers);
-                setDatePosts(fetchedDatePosts);
-                setMessages(fetchedMessages);
-                setMatches(fetchedMatches);
-                setSwipedLeftIds(fetchedSwipedLeftIds);
-                setBusinesses(fetchedBusinesses);
-                setDeals(fetchedDeals);
-
-            } catch (error) {
-                showToast('Failed to load app data. Please refresh.', 'error');
-            } finally {
-                setIsLoading(false);
-                setIsBusinessLoading(false);
-            }
-        };
-
-        if (isAuthenticated) {
-            fetchInitialData();
-        }
-    }, [showToast, isAuthenticated]);
-
-    // Effect for fetching local events and expanding search if necessary
-    useEffect(() => {
-        const fetchAndExpandSearch = async () => {
-            if (!isAuthenticated || !searchLocation) {
-                setLocalEvents([]);
-                setEffectiveSearchLocation('');
-                setIsSearchExpanded(false);
-                return;
-            }
-            
-            setIsEventsLoading(true);
-            try {
-                // 1. Initial Search
-                const initialEvents = await api.getLocalEvents(searchLocation);
-                const initialPostsCount = datePosts.filter(p => p.location.toLowerCase().includes(searchLocation.toLowerCase())).length;
-                const totalResults = initialEvents.length + initialPostsCount;
-
-                // 2. Check Threshold
-                const MIN_RESULTS_THRESHOLD = 5;
-                if (totalResults < MIN_RESULTS_THRESHOLD) {
-                    showToast('Not many results. Expanding search to nearby areas...', 'info');
-                    
-                    // 3. Find Nearby Major City
-                    const majorCity = await getNearbyMajorCity(searchLocation);
-                    
-                    if (majorCity && majorCity.toLowerCase() !== searchLocation.toLowerCase()) {
-                        // 4. Expanded Search
-                        const expandedEvents = await api.getLocalEvents(majorCity);
-                        setLocalEvents(expandedEvents);
-                        setEffectiveSearchLocation(majorCity);
-                        setIsSearchExpanded(true);
-                    } else {
-                        // No major city found or it's the same, use initial results
-                        setLocalEvents(initialEvents);
-                        setEffectiveSearchLocation(searchLocation);
-                        setIsSearchExpanded(false);
-                    }
-                } else {
-                    // 5. Sufficient Results, No Expansion Needed
-                    setLocalEvents(initialEvents);
-                    setEffectiveSearchLocation(searchLocation);
-                    setIsSearchExpanded(false);
-                }
-            } catch (error) {
-                showToast('Failed to load local data. Please try another location.', 'error');
-                setLocalEvents([]);
-                setEffectiveSearchLocation(searchLocation);
-                setIsSearchExpanded(false);
-            } finally {
-                setIsEventsLoading(false);
-            }
-        };
-
-        fetchAndExpandSearch();
-    }, [searchLocation, isAuthenticated, showToast, datePosts]);
-
-
-    useEffect(() => {
-        let newIndex;
-        do { newIndex = Math.floor(Math.random() * colorThemes.length); } 
-        while (colorThemes.length > 1 && newIndex === lastColorIndex.current);
-        lastColorIndex.current = newIndex;
-        setActiveColorTheme(colorThemes[newIndex]);
-    }, [currentView]);
-
-
-    const currentUser = useMemo(() => users.find(u => u.id === CURRENT_USER_ID), [users]);
-
-    const matchedUsers = useMemo(() => {
-        return users.filter(user => matches.includes(user.id));
-    }, [users, matches]);
-    
-    const sentMessageCount = useMemo(() => {
-        if (!currentUser || currentUser.isPremium) return 0;
-        return messages.filter(m => m.senderId === CURRENT_USER_ID).length;
-    }, [messages, currentUser]);
-    
-    const FREE_MESSAGE_LIMIT = 20;
-
-    const usersForSwiping = useMemo(() => {
-        if (!currentUser) return [];
-        return users.filter(u => {
-            const isNotCurrentUser = u.id !== CURRENT_USER_ID;
-            const isNotMatched = !matches.includes(u.id);
-            const isNotSwipedLeft = !swipedLeftIds.includes(u.id);
-            const isNotSwipedRight = !swipedRightIds.includes(u.id);
-            if (!currentUser.preferences) return isNotCurrentUser && isNotMatched && isNotSwipedLeft && isNotSwipedRight;
-            
-            const matchesGenderPref = currentUser.preferences.interestedIn.includes(u.gender);
-            const matchesAgePref = u.age >= currentUser.preferences.ageRange.min && u.age <= currentUser.preferences.ageRange.max;
-            
-            return isNotCurrentUser && isNotMatched && isNotSwipedLeft && isNotSwipedRight && matchesGenderPref && matchesAgePref;
-        });
-    }, [users, matches, swipedLeftIds, swipedRightIds, currentUser]);
-    
-    const myDates = datePosts.filter(d => d.createdBy === CURRENT_USER_ID);
-    
-    const earnBadge = (badgeId: Badge['id']) => {
-        const user = users.find(u => u.id === CURRENT_USER_ID);
-        if (!user || user.earnedBadgeIds?.includes(badgeId)) {
-            return;
-        }
-
-        showToast(`Badge Unlocked: ${BADGES[badgeId].name}!`, 'success');
-        const updatedUser = { ...user, earnedBadgeIds: [...(user.earnedBadgeIds || []), badgeId] };
-        api.updateUser(updatedUser).then(savedUser => {
-            setUsers(prevUsers => prevUsers.map(u => u.id === CURRENT_USER_ID ? savedUser : u));
-        });
-    };
-
-    const handleSwipe = async (userId: number, direction: 'left' | 'right') => {
-        if (!currentUser) return;
-        setLastSwipedUserId(userId);
-        try {
-            const { isMatch } = await api.recordSwipe(currentUser.id, userId, direction);
-            if (direction === 'right') {
-                setSwipedRightIds(prev => [...prev, userId]);
-                if (isMatch) {
-                    setMatches(prev => [...prev, userId]);
-                    const matchedUser = users.find(u => u.id === userId);
-                    showToast(`You matched with ${matchedUser?.name}!`, 'success');
-                }
-            } else {
-                setSwipedLeftIds(prev => [...prev, userId]);
-            }
-        } catch (error) {
-            showToast('Something went wrong with your swipe.', 'error');
-        }
-    };
-    
-    const handleSuperLike = async (userId: number) => {
-        if (!currentUser) return;
-        setLastSwipedUserId(userId);
-        try {
-            const { isMatch } = await api.recordSuperLike(currentUser.id, userId);
-            setSwipedRightIds(prev => [...prev, userId]);
-            // In our mock API, a super like behaves like a normal swipe, but we give a special toast.
-            // A real backend would handle the special notification.
-            if (isMatch) {
-                setMatches(prev => [...prev, userId]);
-                const matchedUser = users.find(u => u.id === userId);
-                showToast(`It's a Super Match with ${matchedUser?.name}!`, 'success');
-            } else {
-                 showToast(`You Super Liked ${users.find(u => u.id === userId)?.name}!`, 'info');
-            }
-        } catch (error) {
-            showToast('Something went wrong with your super like.', 'error');
-        }
-    };
-
-    const handleRecall = async () => {
-        if (!lastSwipedUserId || !currentUser) return;
-        try {
-            await api.recallSwipe(currentUser.id, lastSwipedUserId);
-            setMatches(prev => prev.filter(id => id !== lastSwipedUserId));
-            setSwipedLeftIds(prev => prev.filter(id => id !== lastSwipedUserId));
-            setSwipedRightIds(prev => prev.filter(id => id !== lastSwipedUserId));
-            const recalledUser = users.find(u => u.id === lastSwipedUserId);
-            showToast(`Recalled ${recalledUser?.name || 'profile'}.`, 'info');
-            setLastSwipedUserId(null);
-        } catch (error) {
-             showToast(`Failed to recall swipe.`, 'error');
-        }
-    };
-
-    const handleToggleInterest = async (dateId: number) => {
-        const post = datePosts.find(p => p.id === dateId);
-        if (!post || !currentUser) return;
-        
-        const isInterested = post.applicants.includes(currentUser.id);
-        const newApplicants = isInterested 
-            ? post.applicants.filter(id => id !== currentUser.id)
-            : [...post.applicants, currentUser.id];
-            
-        try {
-            const updatedPost = await api.updateDatePost({ ...post, applicants: newApplicants });
-            setDatePosts(prev => prev.map(p => p.id === dateId ? updatedPost : p));
-            const message = isInterested ? "You are no longer interested in this date." : "You've expressed interest in this date!";
-            showToast(message, isInterested ? 'info' : 'success');
-        } catch(error) {
-            showToast('Failed to update interest.', 'error');
-        }
-    };
-
-    const handlePriorityInterest = async (dateId: number) => {
-        if (!currentUser) return;
-        try {
-            const updatedPost = await api.expressPriorityInterest(currentUser.id, dateId);
-            setDatePosts(prev => prev.map(p => p.id === dateId ? updatedPost : p));
-            showToast("You've shown priority interest! The creator will be notified.", 'success');
-        } catch (error) {
-            showToast('Failed to show priority interest.', 'error');
-        }
-    };
-
-    const handleCreateDate = async (newDateData: Omit<DatePost, 'id' | 'createdBy' | 'applicants' | 'chosenApplicantId' | 'categories'>) => {
-        if (!currentUser) return;
-
-        showToast('AI is categorizing your date...', 'info');
-        try {
-            const categories = await categorizeDatePost(newDateData.title, newDateData.description);
-            const newDate = await api.createDate({ 
-                ...newDateData,
-                categories,
-                createdBy: currentUser.id,
-                applicants: [],
-                chosenApplicantId: null
-            });
-
-            setDatePosts(prev => [newDate, ...prev]);
-            showToast('Your date has been posted!', 'success');
-            setCurrentView(View.Dates);
-
-            // Badge Logic
-            if (myDates.length === 0) earnBadge('first_date');
-            if (myDates.length === 2) earnBadge('prolific_planner');
-            const adventurousKeywords = ['hike', 'outdoor', 'adventure', 'explore', 'nature', 'mountain'];
-            const dateText = `${newDateData.title.toLowerCase()} ${newDateData.description.toLowerCase()}`;
-            if (adventurousKeywords.some(keyword => dateText.includes(keyword))) earnBadge('adventurous');
-        } catch (error: any) {
-            showToast(error.message || 'Failed to post date.', 'error');
-        }
-    };
-
-    const handleDeleteDate = async (dateId: number) => {
-        try {
-            await api.deleteDatePost(dateId);
-            setDatePosts(prevPosts => prevPosts.filter(post => post.id !== dateId));
-            showToast('Date post has been deleted.', 'info');
-        } catch (error) {
-            showToast('Failed to delete date.', 'error');
-        }
-    };
-
-    const handleChooseApplicant = async (dateId: number, applicantId: number) => {
-        const post = datePosts.find(p => p.id === dateId);
-        if (!post) return;
-        try {
-            const updatedPost = await api.updateDatePost({ ...post, chosenApplicantId: applicantId });
-            setDatePosts(prevPosts => prevPosts.map(p => p.id === dateId ? updatedPost : p));
-            const applicant = users.find(u => u.id === applicantId);
-            showToast(`You've chosen ${applicant?.name} for your date!`, 'success');
-        } catch(error) {
-            showToast('Failed to choose applicant.', 'error');
-        }
-    };
-
-    const handleUpdateProfile = async (updatedUser: User) => {
-        try {
-            const savedUser = await api.updateUser(updatedUser);
-            setUsers(prevUsers => prevUsers.map(u => u.id === savedUser.id ? savedUser : u));
-            showToast('Profile saved successfully!', 'success');
-        } catch(error) {
-            showToast('Failed to save profile.', 'error');
-        }
-    };
-
-    const handleSendMessage = async (receiverId: number, text: string) => {
-        if (!currentUser) return;
-        if (!currentUser.isPremium && sentMessageCount >= FREE_MESSAGE_LIMIT) {
-            handleOpenMonetizationModal();
-            showToast(`You've used your ${FREE_MESSAGE_LIMIT} free messages. Upgrade to Premium for unlimited chat!`, 'info');
-            return;
-        }
-
-        if (messages.filter(m => m.senderId === currentUser.id).length === 4) earnBadge('starter');
-        
-        try {
-            const newMessage = await api.sendMessage(CURRENT_USER_ID, receiverId, text);
-            setMessages(prev => [...prev, newMessage]);
-        } catch (error) {
-            showToast('Failed to send message.', 'error');
-        }
-    };
-    
-    const handleSetAppBackground = (background: string | null) => {
-        setAppBackground(background);
-        if (background) localStorage.setItem('appBackground', background);
-        else localStorage.removeItem('appBackground');
-    };
-
-    const handleCreateDateFromEvent = (event: LocalEvent) => {
-        setEventForDate(event);
-        setCurrentView(View.Create);
-        showToast('Pre-filled date from event!', 'info');
-    };
-    const clearEventForDate = () => setEventForDate(null);
-
-    const handleCreateDateFromBusiness = (business: Business, deal?: Deal) => {
-        setBusinessForDate({ business, deal });
-        setCurrentView(View.Create);
-        showToast(`Planning a date at ${business.name}!`, 'info');
-    };
-    const clearBusinessForDate = () => setBusinessForDate(null);
-
-
-    // Modal Handlers
-    const handleViewProfile = (user: User) => { setSelectedUserForModal(user); setIsProfileModalOpen(true); };
-    const handleCloseProfile = () => { setIsProfileModalOpen(false); setTimeout(() => setSelectedUserForModal(null), 300); };
-    const handleViewBusiness = (business: Business) => { setSelectedBusinessForModal(business); setIsBusinessModalOpen(true); };
-    const handleCloseBusiness = () => { setIsBusinessModalOpen(false); setTimeout(() => setSelectedBusinessForModal(null), 300); };
-    const handleGenerateIcebreakersFromProfile = (user: User) => { setIsProfileModalOpen(false); setSelectedUserForModal(user); setIsIcebreakerModalOpen(true); };
-    const handleCloseIcebreakers = () => { setIsIcebreakerModalOpen(false); setTimeout(() => setSelectedUserForModal(null), 300); };
-    const handleGetProfileFeedback = () => setIsFeedbackModalOpen(true);
-    const handleCloseProfileFeedback = () => setIsFeedbackModalOpen(false);
-    const handlePlanDate = (matchedUser: User) => { if (currentUser) { setUsersForDatePlanning([currentUser, matchedUser]); setIsDatePlannerModalOpen(true); } };
-    const handleCloseDatePlanner = () => { setIsDatePlannerModalOpen(false); setTimeout(() => setUsersForDatePlanning(null), 300); };
-    const handleOpenMonetizationModal = () => setIsMonetizationModalOpen(true);
-    const handleCloseMonetizationModal = () => setIsMonetizationModalOpen(false);
-    const handleUpgradeToPremium = () => { if (currentUser) { handleUpdateProfile({ ...currentUser, isPremium: true }); handleCloseMonetizationModal(); showToast('Congratulations! You are now a Create-A-Date Premium member.', 'success'); } };
-
-    const handleSignOut = () => { setIsAuthenticated(false); setCurrentView(View.Swipe); showToast("You've been signed out.", "info"); };
-
-    const renderView = () => {
-        if (isLoading && isEventsLoading && isBusinessLoading) return <div className="text-center pt-20 text-xl font-semibold">Loading Create-A-Date...</div>;
-        if (!currentUser && !isLoading) return <div className="text-center text-red-500">Error: Could not load current user data. Please check your Supabase connection and ensure user with ID 1 exists.</div>;
-
-        switch (currentView) {
-            case View.Swipe:
-                return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onSuperLike={handleSuperLike} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} />;
-            case View.Dates:
-                return <DateMarketplace 
-                            datePosts={datePosts} 
-                            allUsers={users} 
-                            businesses={businesses} 
-                            deals={deals} 
-                            onToggleInterest={handleToggleInterest} 
-                            onPriorityInterest={handlePriorityInterest} 
-                            currentUserId={CURRENT_USER_ID} 
-                            gender={currentUser?.gender} 
-                            isLoading={isLoading} 
-                            onViewProfile={handleViewProfile} 
-                            onViewBusiness={handleViewBusiness} 
-                            activeColorTheme={activeColorTheme} 
-                            localEvents={localEvents} 
-                            onCreateDateFromEvent={handleCreateDateFromEvent} 
-                            isEventsLoading={isEventsLoading} 
-                            searchLocation={searchLocation}
-                            effectiveSearchLocation={effectiveSearchLocation}
-                            isSearchExpanded={isSearchExpanded}
-                            onSearchLocationChange={setSearchLocation} 
-                            onPremiumFeatureClick={handleOpenMonetizationModal} 
-                        />;
-            case View.Create:
-                return <CreateDateForm onCreateDate={handleCreateDate} currentUser={currentUser!} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} eventForDate={eventForDate} onClearEventForDate={clearEventForDate} businessForDate={businessForDate} onClearBusinessForDate={clearBusinessForDate} />;
-            case View.Matches:
-                return <MatchesView matchedUsers={matchedUsers} currentUser={currentUser!} onViewProfile={handleViewProfile} onPlanDate={handlePlanDate} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
-             case View.Chat:
-                return <ChatView currentUser={currentUser!} matchedUsers={matchedUsers} allUsers={users} messages={messages} onSendMessage={handleSendMessage} onViewProfile={handleViewProfile} isChatDisabled={!currentUser?.isPremium && sentMessageCount >= FREE_MESSAGE_LIMIT} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
-            case View.MyDates:
-                return <MyDatesManager myDates={myDates} allUsers={users} onChooseApplicant={handleChooseApplicant} onDeleteDate={handleDeleteDate} gender={currentUser?.gender} onViewProfile={handleViewProfile} activeColorTheme={activeColorTheme} />;
-            case View.BusinessSignup:
-                return <BusinessSignupForm activeColorTheme={activeColorTheme} />;
-            case View.Leaderboard:
-                return <LeaderboardView activeColorTheme={activeColorTheme} onViewProfile={handleViewProfile} />;
-            case View.Profile:
-                return <ProfileSettings currentUser={currentUser!} onSave={handleUpdateProfile} onGetFeedback={handleGetProfileFeedback} activeColorTheme={activeColorTheme} onSignOut={handleSignOut} onPremiumFeatureClick={handleOpenMonetizationModal} onSetAppBackground={handleSetAppBackground} />;
-            default:
-                return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onSuperLike={handleSuperLike} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} />;
-        }
-    };
-
-    if (!isAuthenticated) {
-        return <Auth onAuthSuccess={() => setIsAuthenticated(true)} />;
-    }
-
-    return (
-        <div 
-             className="min-h-screen font-sans bg-cover bg-center bg-fixed" 
-             style={{ backgroundImage: appBackground ? `linear-gradient(rgba(18, 18, 18, 0.7), rgba(18, 18, 18, 0.7)), url(${appBackground})` : 'none', backgroundColor: '#121212' }}
-        >
-            <Header currentView={currentView} setCurrentView={setCurrentView} activeColorTheme={activeColorTheme} />
-            <main className="pt-28 pb-10 px-4 container mx-auto">
-                {renderView()}
-            </main>
-            {isProfileModalOpen && <ProfileModal user={selectedUserForModal} onClose={handleCloseProfile} onGenerateIcebreakers={handleGenerateIcebreakersFromProfile} gender={currentUser?.gender} />}
-            {isBusinessModalOpen && <BusinessDetailModal business={selectedBusinessForModal} allDeals={deals} onClose={handleCloseBusiness} onCreateDate={handleCreateDateFromBusiness} />}
-            {isIcebreakerModalOpen && <IcebreakerModal user={selectedUserForModal} onClose={handleCloseIcebreakers} gender={currentUser?.gender} onSendIcebreaker={(message) => { if(selectedUserForModal) { handleSendMessage(selectedUserForModal.id, message); handleCloseIcebreakers(); setCurrentView(View.Chat); } }} />}
-            {isFeedbackModalOpen && <ProfileFeedbackModal user={currentUser!} onClose={handleCloseProfileFeedback} gender={currentUser?.gender}/>}
-            {isDatePlannerModalOpen && <DatePlannerModal users={usersForDatePlanning} onClose={handleCloseDatePlanner} gender={currentUser?.gender}/>}
-            {isMonetizationModalOpen && <MonetizationModal onClose={handleCloseMonetizationModal} onUpgrade={handleUpgradeToPremium} />}
-        </div>
-    );
+// Define the shape of our app state
+type AppState = {
+  isAuthenticated: boolean;
+  currentUser: User | null;
+  users: User[];
+  datePosts: DatePost[];
+  messages: Message[];
+  matches: User[];
+  swipedLeftIds: number[];
+  swipedRightIds: number[];
+  localEvents: LocalEvent[];
+  businesses: Business[];
+  deals: Deal[];
+  searchLocation: string;
+  effectiveSearchLocation: string;
+  isSearchExpanded: boolean;
+  activeColorTheme: ColorTheme;
+  appBackground: string | null;
+  selectedUserForModal: User | null;
+  selectedBusinessForModal: Business | null;
+  usersForDatePlanning: [User, User] | null;
+  eventForDate: LocalEvent | null;
+  businessForDate: { business: Business; deal?: Deal } | null;
+  isProfileModalOpen: boolean;
+  isIcebreakerModalOpen: boolean;
+  isFeedbackModalOpen: boolean;
+  isDatePlannerModalOpen: boolean;
+  isMonetizationModalOpen: boolean;
+  isBusinessModalOpen: boolean;
+  currentView: View;
 };
 
-const App: React.FC = () => (
+type LoadingState = {
+  isLoading: boolean;
+  isEventsLoading: boolean;
+  isBusinessLoading: boolean;
+  error: string | null;
+};
+
+const initialState: AppState = {
+  isAuthenticated: false,
+  currentUser: null,
+  users: [],
+  datePosts: [],
+  messages: [],
+  matches: [],
+  swipedLeftIds: [],
+  swipedRightIds: [],
+  localEvents: [],
+  businesses: [],
+  deals: [],
+  searchLocation: '',
+  effectiveSearchLocation: '',
+  isSearchExpanded: false,
+  activeColorTheme: colorThemes[0],
+  appBackground: localStorage.getItem('appBackground'),
+  selectedUserForModal: null,
+  selectedBusinessForModal: null,
+  usersForDatePlanning: null,
+  eventForDate: null,
+  businessForDate: null,
+  isProfileModalOpen: false,
+  isIcebreakerModalOpen: false,
+  isFeedbackModalOpen: false,
+  isDatePlannerModalOpen: false,
+  isMonetizationModalOpen: false,
+  isBusinessModalOpen: false,
+  currentView: View.Swipe,
+};
+
+const initialLoadingState: LoadingState = {
+  isLoading: true,
+  isEventsLoading: false,
+  isBusinessLoading: false,
+  error: null,
+};
+
+const MainApp: React.FC = () => {
+  const [state, setState] = useState<AppState>(initialState);
+  const [loading, setLoading] = useState<LoadingState>({
+    ...initialLoadingState,
+    isLoading: true, // Start with loading true to wait for auth state
+  });
+  const lastColorIndex = useRef(0);
+  const { showToast } = useToast();
+  const authListener = useRef<{ unsubscribe: () => void } | null>(null);
+  
+  // Memoize derived state
+  const { 
+    isAuthenticated, currentUser, users, datePosts, messages, matches, 
+    swipedLeftIds, localEvents, businesses, deals, searchLocation, 
+    effectiveSearchLocation, isSearchExpanded, activeColorTheme, appBackground,
+    selectedUserForModal, selectedBusinessForModal, usersForDatePlanning,
+    eventForDate, businessForDate, isProfileModalOpen, isIcebreakerModalOpen,
+    isFeedbackModalOpen, isDatePlannerModalOpen, isMonetizationModalOpen,
+    isBusinessModalOpen, currentView 
+  } = state;
+  
+  const { isLoading, isEventsLoading, isBusinessLoading, error } = loading;
+
+  // Helper function to update state with type safety
+  const updateState = useCallback((updates: Partial<AppState>) => {
+    setState(prev => ({
+      ...prev,
+      ...updates,
+    }));
+  }, []);
+
+  // Helper function to update loading state
+  const updateLoading = useCallback((updates: Partial<LoadingState>) => {
+    setLoading(prev => ({
+      ...prev,
+      ...updates,
+    }));
+  }, []);
+
+  // Handle errors consistently
+  const handleError = useCallback((error: any, defaultMessage: string) => {
+    console.error(error);
+    const message = error instanceof Error ? error.message : defaultMessage;
+    showToast(message, 'error');
+    updateLoading({ error: message });
+    return message;
+  }, [showToast, updateLoading]);
+
+  // Handle user login
+  const handleLogin = useCallback(async (email: string, password: string) => {
+    try {
+      updateLoading({ isLoading: true, error: null });
+      // Call your authentication API here
+      // const user = await api.login(email, password);
+      // updateState({ isAuthenticated: true, currentUser: user });
+    } catch (error) {
+      handleError(error, 'Failed to log in. Please check your credentials.');
+    } finally {
+      updateLoading({ isLoading: false });
+    }
+  }, [handleError, updateLoading, updateState]);
+
+  // Handle user signup
+  const handleSignup = useCallback(async (userData: any) => {
+    try {
+      updateLoading({ isLoading: true, error: null });
+      // Call your signup API here
+      // const user = await api.signup(userData);
+      // updateState({ isAuthenticated: true, currentUser: user });
+    } catch (error) {
+      handleError(error, 'Failed to create account. Please try again.');
+    } finally {
+      updateLoading({ isLoading: false });
+    }
+  }, [handleError, updateLoading, updateState]);
+
+  // Handle user logout
+  const handleLogout = useCallback(async () => {
+    try {
+      updateLoading({ isLoading: true });
+      // Call your logout API here
+      // await api.logout();
+      updateState({
+        ...initialState,
+        appBackground: state.appBackground, // Keep the background setting
+      });
+    } catch (error) {
+      handleError(error, 'Failed to log out. Please try again.');
+    } finally {
+      updateLoading({ isLoading: false });
+    }
+  }, [handleError, updateLoading, updateState, state.appBackground]);
+
+  // Fetch initial app data
+  const fetchInitialData = useCallback(async () => {
+    if (!isAuthenticated || !currentUser) return;
+    
+    try {
+      updateLoading({ isLoading: true, error: null });
+      
+      // Fetch all data in parallel
+      const [
+        fetchedUsers, 
+        fetchedDatePosts, 
+        fetchedMatches,
+        fetchedSwipedLeftIds,
+        fetchedBusinesses,
+        fetchedDeals
+      ] = await Promise.all([
+        api.getUsers(),
+        api.getDatePosts(currentUser.id),
+        api.getMatches(currentUser.id),
+        api.getSwipedLeftIds(currentUser.id),
+        api.getBusinesses(),
+        api.getDealsForBusiness(0), // Get all deals
+      ]);
+      
+      // Update state with fetched data
+      updateState({
+        users: fetchedUsers,
+        datePosts: fetchedDatePosts,
+        matches: fetchedMatches,
+        swipedLeftIds: fetchedSwipedLeftIds,
+        businesses: fetchedBusinesses,
+        deals: fetchedDeals,
+      });
+      
+    } catch (error) {
+      handleError(error, 'Failed to load app data. Please refresh.');
+    } finally {
+      updateLoading({ 
+        isLoading: false,
+        isBusinessLoading: false 
+      });
+    }
+  }, [isAuthenticated, currentUser, handleError, updateLoading, updateState]);
+  
+  // Handle user location detection
+  const getUserLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      showToast("Geolocation is not supported by your browser. Please search for a city.", 'info');
+      return;
+    }
+    
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      });
+      
+      const city = await getCityFromCoords(
+        position.coords.latitude,
+        position.coords.longitude
+      );
+      
+      showToast(`Location found! Showing local dates for ${city}.`, 'info');
+      updateState({ 
+        searchLocation: city, 
+        effectiveSearchLocation: city 
+      });
+      
+    } catch (error) {
+      console.warn("Location error:", error);
+      showToast("Could not get your location. Please search for a city.", 'info');
+    }
+  }, [showToast, updateState]);
+  
+  // Fetch and expand search for local events
+  const fetchAndExpandSearch = useCallback(async () => {
+    if (!isAuthenticated || !searchLocation) {
+      updateState({ 
+        localEvents: [],
+        effectiveSearchLocation: '',
+        isSearchExpanded: false 
+      });
+      return;
+    }
+    
+    updateLoading({ isEventsLoading: true });
+    
+    try {
+      // 1. Initial Search
+      const initialEvents = await api.getLocalEvents(searchLocation);
+      const initialPostsCount = datePosts.filter(p => 
+        p.location.toLowerCase().includes(searchLocation.toLowerCase())
+      ).length;
+      
+      const totalResults = initialEvents.length + initialPostsCount;
+      const MIN_RESULTS_THRESHOLD = 5;
+      
+      // 2. Check if we need to expand search
+      if (totalResults < MIN_RESULTS_THRESHOLD) {
+        showToast('Not many results. Expanding search to nearby areas...', 'info');
+        
+        try {
+          // 3. Find Nearby Major City
+          const majorCity = await getNearbyMajorCity(searchLocation);
+          
+          if (majorCity && majorCity.toLowerCase() !== searchLocation.toLowerCase()) {
+            // 4. Expanded Search
+            const expandedEvents = await api.getLocalEvents(majorCity);
+            updateState({
+              localEvents: expandedEvents,
+              effectiveSearchLocation: majorCity,
+              isSearchExpanded: true
+            });
+          } else {
+            // Use initial results
+            updateState({
+              localEvents: initialEvents,
+              effectiveSearchLocation: searchLocation,
+              isSearchExpanded: false
+            });
+          }
+        } catch (expandError) {
+          // Fall back to initial results if expansion fails
+          console.warn('Expanded search failed:', expandError);
+          updateState({
+            localEvents: initialEvents,
+            effectiveSearchLocation: searchLocation,
+            isSearchExpanded: false
+          });
+        }
+      } else {
+        // 5. Sufficient Results, No Expansion Needed
+        updateState({
+          localEvents: initialEvents,
+          effectiveSearchLocation: searchLocation,
+          isSearchExpanded: false
+        });
+      }
+    } catch (error) {
+      handleError(error, 'Failed to load local data. Please try another location.');
+      updateState({
+        localEvents: [],
+        effectiveSearchLocation: searchLocation,
+        isSearchExpanded: false
+      });
+    } finally {
+      updateLoading({ isEventsLoading: false });
+    }
+  }, [searchLocation, isAuthenticated, datePosts, showToast, handleError, updateLoading, updateState]);
+  
+  // Handle authentication state changes
+  useEffect(() => {
+    // Set up the auth state listener
+    authListener.current = onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session);
+      
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        try {
+          // Get the current user and session
+          const user = await getCurrentUser();
+          const currentSession = await getSession();
+          
+          if (user && currentSession) {
+            // Update the app state with the authenticated user
+            updateState({
+              isAuthenticated: true,
+              currentUser: {
+                id: user.id,
+                email: user.email || '',
+                name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+                // Add other user properties from your user_metadata or user table
+                ...user.user_metadata,
+              } as User
+            });
+            
+            // Fetch user-specific data
+            fetchInitialData();
+          } else {
+            updateState({ isAuthenticated: false, currentUser: null });
+          }
+        } catch (error) {
+          console.error('Error handling auth state change:', error);
+          updateState({ isAuthenticated: false, currentUser: null });
+        }
+      } else if (event === 'SIGNED_OUT') {
+        updateState({
+          isAuthenticated: false,
+          currentUser: null,
+          // Reset other state as needed
+          users: [],
+          datePosts: [],
+          messages: [],
+          matches: [],
+          swipedLeftIds: [],
+          swipedRightIds: [],
+          localEvents: [],
+          businesses: [],
+          deals: [],
+        });
+      }
+      
+      // Update loading state after auth check
+      updateLoading({ isLoading: false });
+    });
+    
+    // Clean up the listener when the component unmounts
+    return () => {
+      if (authListener.current) {
+        authListener.current.unsubscribe();
+      }
+    };
+  }, [updateState, updateLoading]);
+  
+  // Handle initial data fetching after authentication
+  const fetchInitialData = useCallback(async () => {
+    if (!state.currentUser) return;
+    
+    try {
+      updateLoading({ isLoading: true });
+      
+      // Fetch all data in parallel
+      const [
+        fetchedUsers, 
+        fetchedDatePosts, 
+        fetchedMatches,
+        fetchedSwipedLeftIds,
+        fetchedBusinesses,
+        fetchedDeals,
+        fetchedMessages
+      ] = await Promise.all([
+        api.getUsers(),
+        api.getDatePosts(state.currentUser.id),
+        api.getMatches(state.currentUser.id),
+        api.getSwipedLeftIds(state.currentUser.id),
+        api.getBusinesses(),
+        api.getDealsForBusiness(0), // Get all deals
+        api.getMessages()
+      ]);
+      
+      // Update state with fetched data
+      updateState({
+        users: fetchedUsers,
+        datePosts: fetchedDatePosts,
+        messages: fetchedMessages,
+        matches: fetchedMatches,
+        swipedLeftIds: fetchedSwipedLeftIds,
+        businesses: fetchedBusinesses,
+        deals: fetchedDeals,
+      });
+      
+    } catch (error) {
+      console.error('Error fetching initial data:', error);
+      showToast('Failed to load app data. Please refresh.', 'error');
+    } finally {
+      updateLoading({ isLoading: false });
+    }
+  }, [state.currentUser, updateState, updateLoading, showToast]);
+  
+  // Get user location when authenticated
+  const getUserLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      showToast("Geolocation is not supported by your browser. Please search for a city.", 'info');
+      return;
+    }
+    
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      });
+      
+      const city = await getCityFromCoords(
+        position.coords.latitude,
+        position.coords.longitude
+      );
+      
+      showToast(`Location found! Showing local dates for ${city}.`, 'info');
+      updateState({ 
+        searchLocation: city, 
+        effectiveSearchLocation: city 
+      });
+      
+    } catch (error) {
+      console.warn("Location error:", error);
+      showToast("Could not get your location. Please search for a city.", 'info');
+    }
+  }, [showToast, updateState]);
+  
+  // Handle successful authentication
+  const handleAuthSuccess = useCallback((user: any) => {
+    // This is now handled by the auth state listener
+    console.log('Auth success:', user);
+  }, []);
+  
+  // Handle logout
+  const handleLogout = useCallback(async () => {
+    try {
+      updateLoading({ isLoading: true });
+      await signOut();
+      // The auth state listener will handle the state update
+    } catch (error) {
+      console.error('Error signing out:', error);
+      showToast('Failed to sign out. Please try again.', 'error');
+    } finally {
+      updateLoading({ isLoading: false });
+    }
+  }, [updateLoading, showToast]);
+  
+  // Trigger search when searchLocation changes
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    const timer = setTimeout(() => {
+      fetchAndExpandSearch();
+    }, 500); // Debounce search
+    
+    return () => clearTimeout(timer);
+  }, [searchLocation, isAuthenticated, fetchAndExpandSearch]);
+
+  // Render loading state
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+  
+  // Render error state if needed
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <p className="font-bold">Error Loading Application</p>
+          <p>{error}</p>
+          <button 
+            onClick={fetchInitialData}
+            className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Render the main app
+  return (
+    <div 
+      className="min-h-screen flex flex-col" 
+      style={appBackground ? { 
+        backgroundImage: `url(${appBackground})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      } : {}}
+    >
+      <React.Suspense fallback={<LoadingSpinner />}>
+        {loading.isLoading ? (
+          <LoadingSpinner />
+        ) : isAuthenticated ? (
+          <>
+            <Header 
+              currentView={currentView}
+              onViewChange={(view) => updateState({ currentView: view })}
+              onSearchLocationChange={(location) => updateState({ searchLocation: location })}
+              searchLocation={searchLocation}
+              isSearchExpanded={isSearchExpanded}
+              onProfileClick={() => updateState({ currentView: View.Profile })}
+              onLogout={handleLogout}
+              user={currentUser!}
+            />
+            
+            <main className="flex-1 overflow-y-auto p-4">
+              {currentView === View.Swipe && currentUser && (
+                <SwipeDeck 
+                  users={users.filter(user => user.id !== currentUser.id)} 
+                  onSwipeLeft={handleSwipeLeft}
+                  onSwipeRight={handleSwipeRight}
+                  onSuperLike={handleSuperLike}
+                  onUndo={handleUndo}
+                  currentUser={currentUser}
+                  onProfileClick={handleProfileClick}
+                />
+              )}
+              
+              {currentView === View.Marketplace && (
+                <DateMarketplace 
+                  datePosts={datePosts}
+                  onDateSelect={handleDateSelect}
+                  onBusinessSelect={handleBusinessSelect}
+                  onEventSelect={handleEventSelect}
+                  isEventsLoading={isEventsLoading}
+                  localEvents={localEvents}
+                  businesses={businesses}
+                  deals={deals}
+                  isBusinessLoading={isBusinessLoading}
+                />
+              )}
+              
+              {currentView === View.CreateDate && currentUser && (
+                <CreateDateForm 
+                  onCreateDate={handleCreateDate}
+                  onCancel={() => updateState({ currentView: View.Marketplace })}
+                  currentUserId={currentUser.id}
+                />
+              )}
+              
+              {currentView === View.MyDates && currentUser && (
+                <MyDatesManager 
+                  datePosts={datePosts.filter(post => post.createdBy === currentUser.id)}
+                  onEditDate={handleEditDate}
+                  onDeleteDate={handleDeleteDate}
+                  onSelectApplicant={handleSelectApplicant}
+                  onMessageUser={handleMessageUser}
+                />
+              )}
+              
+              {currentView === View.Matches && currentUser && (
+                <MatchesView 
+                  matches={matches}
+                  users={users}
+                  currentUserId={currentUser.id}
+                  onMessageUser={handleMessageUser}
+                  onUnmatch={handleUnmatch}
+                />
+              )}
+              
+              {currentView === View.Chat && currentUser && (
+                <ChatView 
+                  messages={messages}
+                  matches={matches}
+                  users={users}
+                  currentUserId={currentUser.id}
+                  onSendMessage={handleSendMessage}
+                  onStartVideoCall={handleStartVideoCall}
+                />
+              )}
+              
+              {currentView === View.Leaderboard && currentUser && (
+                <LeaderboardView 
+                  leaderboard={[]} // TODO: Implement leaderboard
+                  currentUser={currentUser}
+                />
+              )}
+              
+              {currentView === View.Profile && currentUser && (
+                <ProfileSettings 
+                  user={currentUser}
+                  onUpdateProfile={handleUpdateProfile}
+                  onUpgradeToPremium={handleUpgradeToPremium}
+                  onLogout={handleLogout}
+                  onDeleteAccount={handleDeleteAccount}
+                  onViewBusinessPortal={handleViewBusinessPortal}
+                  onChangeTheme={handleChangeTheme}
+                  onUploadBackground={handleUploadBackground}
+                />
+              )}
+            </main>
+            
+            {/* Modals */}
+            <ProfileModal 
+              isOpen={isProfileModalOpen}
+              onClose={() => updateState({ isProfileModalOpen: false })}
+              user={selectedUserForModal!}
+              onMessage={handleMessageUser}
+              onReport={handleReportUser}
+              onBlock={handleBlockUser}
+              currentUserId={currentUser?.id}
+            />
+            
+            <IcebreakerModal 
+              isOpen={isIcebreakerModalOpen}
+              onClose={() => updateState({ isIcebreakerModalOpen: false })}
+              onSendIcebreaker={handleSendIcebreaker}
+              user={selectedUserForModal!}
+              currentUserId={currentUser?.id}
+            />
+            
+            <ProfileFeedbackModal 
+              isOpen={isFeedbackModalOpen}
+              onClose={() => updateState({ isFeedbackModalOpen: false })}
+              onSubmitFeedback={handleSubmitFeedback}
+              user={selectedUserForModal!}
+            />
+            
+            {usersForDatePlanning && currentUser && (
+              <DatePlannerModal 
+                isOpen={isDatePlannerModalOpen}
+                onClose={() => updateState({ isDatePlannerModalOpen: false })}
+                users={usersForDatePlanning}
+                onPlanDate={handlePlanDate}
+                currentUser={currentUser}
+              />
+            )}
+            
+            <MonetizationModal 
+              isOpen={isMonetizationModalOpen}
+              onClose={() => updateState({ isMonetizationModalOpen: false })}
+              onSubscribe={handleSubscribe}
+              onPurchaseCoins={handlePurchaseCoins}
+            />
+            
+            {selectedBusinessForModal && (
+              <BusinessDetailModal 
+                isOpen={isBusinessModalOpen}
+                onClose={() => updateState({ isBusinessModalOpen: false })}
+                business={selectedBusinessForModal}
+                deals={deals.filter(deal => deal.businessId === selectedBusinessForModal.id)}
+                onSelectDeal={handleSelectDeal}
+                onContactBusiness={handleContactBusiness}
+              />
+            )}
+          </>
+        ) : (
+          <Auth 
+            onAuthSuccess={handleAuthSuccess}
+            onBusinessSignup={() => updateState({ currentView: View.BusinessSignup })}
+          />
+        )}
+        
+        {currentView === View.BusinessSignup && (
+          <BusinessSignupForm 
+            onSubmit={handleBusinessSignup}
+            onBack={() => updateState({ currentView: View.Auth })}
+          />
+        )}
+      </React.Suspense>
+    </div>
+  );
+};
+
+const App = () => (
+  <React.Suspense fallback={<LoadingSpinner />}>
     <ToastProvider>
-        <MainApp />
+      <MainApp />
     </ToastProvider>
+  </React.Suspense>
 );
 
 export default App;

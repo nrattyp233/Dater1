@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { User, Message, Gender } from '../types';
 import type { ColorTheme } from '../constants';
 import { CrownIcon, SparklesIcon, BrainIcon, LightbulbIcon } from '../constants';
 import { generateChatReplies, getWingmanTip, generatePickupLines } from '../services/geminiService';
 import { useToast } from '../contexts/ToastContext';
+import { supabase } from '../services/supabaseClient';
 
 interface ChatViewProps {
     currentUser: User;
@@ -34,18 +35,72 @@ const ChatView: React.FC<ChatViewProps> = ({
     const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { showToast } = useToast();
-    
+    const [localMessages, setLocalMessages] = useState<Message[]>(messages);
+    const [isSubscribed, setIsSubscribed] = useState(false);
+    const channelRef = useRef<any>(null);
+
     const [isWingmanOn, setIsWingmanOn] = useState(false);
     const [wingmanTip, setWingmanTip] = useState<string | null>(null);
     const [isGeneratingTip, setIsGeneratingTip] = useState(false);
     const lastMessageCount = useRef(0);
+
+    const setupRealtimeSubscription = useCallback((userId: number | null) => {
+        if (!userId) return;
+
+        if (channelRef.current) {
+            supabase.removeChannel(channelRef.current);
+            channelRef.current = null;
+        }
+
+        const channel = supabase
+            .channel(`messages:user:${currentUser.id}:chat:${userId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'messages',
+                    filter: `receiver_id=eq.${currentUser.id}`
+                },
+                (payload) => {
+                    const newMessage = payload.new as Message;
+                    if (newMessage.sender_id === userId) {
+                        setLocalMessages(prev => [...prev, newMessage]);
+                    }
+                }
+            )
+            .subscribe(status => {
+                console.log('Subscription status:', status);
+                setIsSubscribed(status === 'SUBSCRIBED');
+            });
+
+        channelRef.current = channel;
+
+        return () => {
+            if (channelRef.current) {
+                supabase.removeChannel(channelRef.current);
+                channelRef.current = null;
+            }
+        };
+    }, [currentUser.id]);
+
+    useEffect(() => {
+        setLocalMessages(messages);
+    }, [messages]);
+
+    useEffect(() => {
+        const cleanup = setupRealtimeSubscription(activeChatUserId);
+        return () => {
+            if (cleanup) cleanup();
+        };
+    }, [activeChatUserId, setupRealtimeSubscription]);
 
     const conversations = useMemo(() => {
         return matchedUsers.map(user => {
             const userMessages = messages.filter(
                 m => (m.senderId === user.id && m.receiverId === currentUser.id) || (m.senderId === currentUser.id && m.receiverId === user.id)
             ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-            
+
             return {
                 user,
                 lastMessage: userMessages[0] || null,
@@ -62,7 +117,7 @@ const ChatView: React.FC<ChatViewProps> = ({
     }, [messages, activeChatUserId]);
 
     useEffect(() => {
-        setSuggestions([]); // Clear suggestions when switching chats
+        setSuggestions([]); 
         setWingmanTip(null);
         lastMessageCount.current = 0;
     }, [activeChatUserId]);
@@ -71,13 +126,13 @@ const ChatView: React.FC<ChatViewProps> = ({
 
     const activeChatMessages = useMemo(() => {
         if (!activeChatUserId) return [];
-        return messages
+        return localMessages
             .filter(m => 
                 (m.senderId === currentUser.id && m.receiverId === activeChatUserId) ||
                 (m.senderId === activeChatUserId && m.receiverId === currentUser.id)
             )
             .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    }, [messages, activeChatUserId, currentUser.id]);
+    }, [localMessages, activeChatUserId, currentUser.id]);
 
     useEffect(() => {
         const fetchTip = async () => {
@@ -100,13 +155,34 @@ const ChatView: React.FC<ChatViewProps> = ({
         };
         fetchTip();
     }, [activeChatMessages, isWingmanOn, activeChatUser, currentUser]);
-    
-    const handleSendMessage = (e: React.FormEvent) => {
+
+    const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!messageText.trim() || !activeChatUserId) return;
-        onSendMessage(activeChatUserId, messageText.trim());
-        setMessageText('');
-        setSuggestions([]);
+
+        try {
+            const tempId = `temp-${Date.now()}`;
+            const tempMessage: Message = {
+                id: tempId,
+                senderId: currentUser.id,
+                receiverId: activeChatUserId,
+                text: messageText.trim(),
+                timestamp: new Date().toISOString(),
+                isRead: false
+            };
+
+            setLocalMessages(prev => [...prev, tempMessage]);
+            setMessageText('');
+            setSuggestions([]);
+
+            await onSendMessage(activeChatUserId, messageText.trim());
+
+            setLocalMessages(prev => prev.filter(m => m.id !== tempId));
+        } catch (error) {
+            console.error('Failed to send message:', error);
+            showToast('Failed to send message. Please try again.', 'error');
+            setLocalMessages(prev => prev.filter(m => m.id !== tempId));
+        }
     };
 
     const handleGenerateSuggestions = async () => {
@@ -121,7 +197,7 @@ const ChatView: React.FC<ChatViewProps> = ({
             setIsGeneratingSuggestions(false);
         }
     };
-    
+
     const handleGeneratePickupLines = async () => {
         if (!activeChatUser) return;
         if (!currentUser.isPremium) {
@@ -151,8 +227,17 @@ const ChatView: React.FC<ChatViewProps> = ({
             return;
         }
         setIsWingmanOn(prev => !prev);
-        setWingmanTip(null); // Clear tip on toggle
+        setWingmanTip(null); 
     };
+
+    const ConnectionStatus = () => (
+        <div className="absolute top-2 right-2 flex items-center">
+            <div className={`w-2 h-2 rounded-full mr-2 ${isSubscribed ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+            <span className="text-xs text-gray-400">
+                {isSubscribed ? 'Connected' : 'Connecting...'}
+            </span>
+        </div>
+    );
 
     return (
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 h-[calc(100vh-150px)]">
@@ -178,11 +263,12 @@ const ChatView: React.FC<ChatViewProps> = ({
             <div className="md:col-span-2 lg:col-span-3 bg-dark-2 rounded-2xl flex flex-col border border-dark-3">
                 {activeChatUser ? (
                     <>
-                        <div className="p-4 border-b border-dark-3 flex items-center justify-between gap-3 w-full text-left">
+                        <div className="p-4 border-b border-dark-3 flex items-center justify-between gap-3 w-full text-left relative">
                             <button onClick={() => onViewProfile(activeChatUser)} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                                 <img src={activeChatUser.photos[0]} alt={activeChatUser.name} className="w-10 h-10 rounded-full object-cover" />
                                 <h3 className="text-xl font-bold text-white">{activeChatUser.name}</h3>
                             </button>
+                            <ConnectionStatus />
                             <div className="relative flex items-center gap-2">
                                 <label htmlFor="wingman-toggle" className={`font-semibold text-sm transition-colors ${isWingmanOn ? 'text-cyan-400' : 'text-gray-400'}`}>
                                     AI Wingman
