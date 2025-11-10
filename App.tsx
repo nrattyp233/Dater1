@@ -264,10 +264,10 @@ const MainApp: React.FC = () => {
       });
       
       // Call the edge function to get city from coordinates
-      const city = await callGeminiFunction('getCityFromCoords', {
+      const city = await callGeminiFunction<string>('getCityFromCoords', {
         lat: position.coords.latitude,
         lon: position.coords.longitude
-      });
+      }).catch(() => 'Your Location'); // Fallback to 'Your Location' if the API call fails
       
       showToast(`Location found! Showing local dates for ${city}.`, 'info');
       updateState({ 
@@ -309,36 +309,15 @@ const MainApp: React.FC = () => {
         showToast('Not many results. Expanding search to nearby areas...', 'info');
         
         try {
-          // 3. Find Nearby Major City
-          const majorCity = await getNearbyMajorCity(searchLocation);
-          
-          if (majorCity && majorCity.toLowerCase() !== searchLocation.toLowerCase()) {
-            // 4. Expanded Search
-            const expandedEvents = await api.getLocalEvents(majorCity);
-            updateState({
-              localEvents: expandedEvents,
-              effectiveSearchLocation: majorCity,
-              isSearchExpanded: true
-            });
-          } else {
-            // Use initial results
-            updateState({
-              localEvents: initialEvents,
-              effectiveSearchLocation: searchLocation,
-              isSearchExpanded: false
-            });
-          }
-        } catch (expandError) {
-          // Fall back to initial results if expansion fails
-          console.warn('Expanded search failed:', expandError);
           updateState({
             localEvents: initialEvents,
             effectiveSearchLocation: searchLocation,
             isSearchExpanded: false
           });
         }
-      } else {
-        // 5. Sufficient Results, No Expansion Needed
+      } catch (expandError) {
+        // Fall back to initial results if expansion fails
+        console.warn('Expanded search failed:', expandError);
         updateState({
           localEvents: initialEvents,
           effectiveSearchLocation: searchLocation,
@@ -362,174 +341,115 @@ const MainApp: React.FC = () => {
     });
   } finally {
     updateLoading({ isEventsLoading: false });
-    
-    // Clean up the listener when the component unmounts
-    return () => {
-      if (authListener.current) {
-        authListener.current.unsubscribe();
-      }
-    };
-  }, [updateState, updateLoading]);
-  
-  // Handle initial data fetching after authentication
-  const fetchInitialDataAfterAuth = useCallback(async () => {
-    if (!state.currentUser) return;
-    
-    try {
-      updateLoading({ isLoading: true });
-      
-      // Fetch all data in parallel
-      const [
-        fetchedUsers, 
-        fetchedDatePosts, 
-        fetchedMatches,
-        fetchedSwipedLeftIds,
-        fetchedBusinesses,
-        fetchedDeals,
-        fetchedMessages
-      ] = await Promise.all([
-        api.getUsers(),
-        api.getDatePosts(state.currentUser.id),
-        api.getMatches(state.currentUser.id),
-        api.getSwipedLeftIds(state.currentUser.id),
-        api.getBusinesses(),
-        api.getDealsForBusiness(0), // Get all deals
-        api.getMessages()
-      ]);
-      
-      // Update state with fetched data
-      updateState({
-        users: fetchedUsers,
-        datePosts: fetchedDatePosts,
-        messages: fetchedMessages,
-        matches: fetchedMatches,
-        swipedLeftIds: fetchedSwipedLeftIds,
-        businesses: fetchedBusinesses,
-        deals: fetchedDeals,
-      });
-      
-    } catch (error) {
-      console.error('Error fetching initial data:', error);
-      showToast('Failed to load app data. Please refresh.', 'error');
-    } finally {
-      updateLoading({ isLoading: false });
-    }
-  }, [state.currentUser, updateState, updateLoading, showToast]);
-  
-  // Get user location when authenticated
-  const getUserLocationAfterAuth = useCallback(async () => {
-    if (!navigator.geolocation) {
-      showToast("Geolocation is not supported by your browser. Please search for a city.", 'info');
-      return;
-    }
-    
-    try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        });
-      });
-      
-      const city = await getCityFromCoords(
-        position.coords.latitude,
-        position.coords.longitude
-      );
-      
-      showToast(`Location found! Showing local dates for ${city}.`, 'info');
-      updateState({ 
-        searchLocation: city, 
-        effectiveSearchLocation: city 
-      });
-      
-    } catch (error) {
-      console.warn("Location error:", error);
-      showToast("Could not get your location. Please search for a city.", 'info');
-    }
-  }, [showToast, updateState]);
-  
-  // Handle successful authentication
-  const handleAuthSuccess = useCallback((user: any) => {
-    // This is now handled by the auth state listener
-    console.log('Auth success:', user);
-  }, []);
-  
-  // Handle logout
-  const handleLogout = useCallback(async () => {
-    try {
-      updateLoading({ isLoading: true });
-      await signOut();
-      // The auth state listener will handle the state update
-    } catch (error) {
-      console.error('Error signing out:', error);
-      showToast('Failed to sign out. Please try again.', 'error');
-    } finally {
-      updateLoading({ isLoading: false });
-    }
-  }, [updateLoading, showToast]);
-  
-  // Trigger search when searchLocation changes
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    
-    const timer = setTimeout(() => {
-      fetchAndExpandSearch();
-    }, 500); // Debounce search
-    
-    return () => clearTimeout(timer);
-  }, [searchLocation, isAuthenticated, fetchAndExpandSearch]);
+  }
+}, [isAuthenticated, searchLocation, handleError, updateLoading, updateState]);
 
-  // Render loading state
-  if (isLoading) {
-    return <LoadingSpinner />;
-  }
+// ... (rest of the code remains the same)
+
+// Handle profile click
+const handleProfileClick = useCallback(() => {
+  updateState({ currentView: View.Profile });
+}, [updateState]);
+
+// Handle search location change
+const handleSearchLocationChange = useCallback((location: string) => {
+  updateState({ searchLocation: location });
+}, [updateState]);
+
+// Toggle search expansion
+const toggleSearchExpansion = useCallback(() => {
+  updateState(prev => ({ ...prev, isSearchExpanded: !prev.isSearchExpanded }));
+}, [updateState]);
+
+// Handle search submission
+const handleSearchSubmit = useCallback(async () => {
+  if (!state.searchLocation.trim()) return;
   
-  // Render error state if needed
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          <p className="font-bold">Error Loading Application</p>
-          <p>{error}</p>
-          <button 
-            onClick={fetchInitialData}
-            className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
+  try {
+    updateLoading({ isLoading: true });
+    
+    // Use the search location directly since we've moved the AI functionality to the edge function
+    updateState(prev => ({
+      ...prev,
+      effectiveSearchLocation: state.searchLocation,
+      isSearchExpanded: false 
+    }));
+    
+    showToast(`Showing results for ${state.searchLocation}`, 'info');
+    
+  } catch (error) {
+    console.error('Error searching location:', error);
+    showToast('Error searching location. Using your input instead.', 'error');
+    updateState(prev => ({
+      ...prev,
+      effectiveSearchLocation: state.searchLocation,
+      isSearchExpanded: false 
+    }));
+  } finally {
+    updateLoading({ isLoading: false });
   }
+}, [state.searchLocation, showToast, updateState, updateLoading]);
+
+// Handle swipe actions
+const handleSwipeLeft = useCallback((userId: number) => {
+  // Add to swiped left list
+  updateState(prev => ({
+    ...prev,
+    swipedLeftIds: [...(prev.swipedLeftIds || []), userId]
+  }));
+}, [updateState]);
+
+const handleSwipeRight = useCallback(async (user: User) => {
+  if (!state.currentUser) return;
   
-  // Render the main app
+  // Check for a match (30% chance for demo)
+  const isMatch = Math.random() > 0.7;
+  
+  if (isMatch) {
+    const newMatch = {
+      id: Date.now(),
+      users: [state.currentUser.id, user.id],
+      timestamp: new Date().toISOString(),
+      lastMessage: null,
+      unreadCount: 0,
+      user: user
+    };
+    
+    updateState(prev => ({
+      ...prev,
+      matches: [...(prev.matches || []), newMatch],
+      showMatchDialog: true,
+      matchedUser: user
+    }));
+    
+    showToast(`It's a match with ${user.name}!`, 'success');
+  } else {
+    showToast(`You liked ${user.name}'s profile!`, 'info');
+  }
+}, [state.currentUser, showToast, updateState]);
+
+// ... (rest of the code remains the same)
+
+// Render loading state
+if (isLoading) {
+  return <LoadingSpinner />;
+}
+
+// ... (rest of the code remains the same)
+// Render error state if needed
+if (error) {
   return (
-    <div 
-      className="min-h-screen flex flex-col" 
-      style={appBackground ? { 
-        backgroundImage: `url(${appBackground})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
-      } : {}}
-    >
-      <React.Suspense fallback={<LoadingSpinner />}>
-        {loading.isLoading ? (
-          <LoadingSpinner />
-        ) : isAuthenticated ? (
-          <>
-            <Header 
-              currentView={currentView}
-              onViewChange={(view) => updateState({ currentView: view })}
-              onSearchLocationChange={(location) => updateState({ searchLocation: location })}
-              searchLocation={searchLocation}
-              isSearchExpanded={isSearchExpanded}
-              onProfileClick={() => updateState({ currentView: View.Profile })}
-              onLogout={handleLogout}
-              user={currentUser!}
-            />
-            
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <p className="font-bold">Error Loading Application</p>
+        <p>{error}</p>
+        <button 
+          onClick={fetchInitialData}
+          className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          Retry
+        </button>
+      </div>
             <main className="flex-1 overflow-y-auto p-4">
               {currentView === View.Swipe && currentUser && (
                 <SwipeDeck 

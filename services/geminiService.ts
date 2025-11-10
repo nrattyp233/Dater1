@@ -1,6 +1,11 @@
 import { User, LocalEvent, Message, DateCategory } from '../types';
 import { supabase } from './supabaseClient';
 
+type GeminiResponse<T> = {
+  data?: T;
+  error?: Error;
+};
+
 // This file now acts as a client-side wrapper for the Supabase Edge Function
 // that handles all Gemini API calls server-side
 
@@ -42,7 +47,7 @@ const MOCK_EVENTS: LocalEvent[] = [
 ];
 
 // Helper function to call the Edge Function
-async function callGeminiFunction<T>(functionName: string, params: any): Promise<T> {
+export async function callGeminiFunction<T>(functionName: string, params: any): Promise<T> {
     try {
         const { data, error } = await supabase.functions.invoke('gemini-handler', {
             body: { functionName, params }
@@ -55,7 +60,7 @@ async function callGeminiFunction<T>(functionName: string, params: any): Promise
 
         return data as T;
     } catch (error) {
-        console.error(`Error in ${functionName}:`, error);
+        console.error(`Error in callGeminiFunction (${functionName}):`, error);
         throw error;
     }
 }
@@ -65,8 +70,8 @@ async function callGeminiFunction<T>(functionName: string, params: any): Promise
 
 export const getProfileVibe = async (user: User): Promise<string> => {
     try {
-        const { vibe } = await callGeminiFunction<{ vibe: string }>('getProfileVibe', { user });
-        return vibe || "Fun & Adventurous";
+        const response = await callGeminiFunction<string>('getProfileVibe', { user });
+        return response || 'Fun & Adventurous';
     } catch (error) {
         console.error("Error getting profile vibe:", error);
         return "Fun & Adventurous";
@@ -75,10 +80,10 @@ export const getProfileVibe = async (user: User): Promise<string> => {
 
 export const getRealtimeEvents = async (location: string): Promise<LocalEvent[]> => {
     try {
-        const { events } = await callGeminiFunction<{ events: LocalEvent[] }>('getRealtimeEvents', { location });
-        return events || MOCK_EVENTS;
+        const events = await callGeminiFunction<{events: LocalEvent[]}>('getRealtimeEvents', { location });
+        return events?.events || MOCK_EVENTS;
     } catch (error) {
-        console.error("Error fetching real-time events:", error);
+        console.error("Error getting real-time events:", error);
         return MOCK_EVENTS;
     }
 };
@@ -158,29 +163,26 @@ export const categorizeDatePost = async (title: string, description: string): Pr
     const text = `${title} ${description}`.toLowerCase();
     const categories: DateCategory[] = [];
     
-    const categoryKeywords: Record<DateCategory, string[]> = {
+    const categoryKeywords = {
         'Food & Drink': ['food', 'restaurant', 'coffee', 'dinner', 'lunch', 'brunch', 'bar', 'wine', 'beer', 'cocktail', 'tasting', 'cafe', 'eat', 'drink'],
         'Outdoors & Adventure': ['park', 'hike', 'bike', 'outdoor', 'adventure', 'nature', 'garden', 'beach', 'lake', 'mountain', 'trail', 'camp', 'picnic'],
         'Arts & Culture': ['art', 'museum', 'gallery', 'theater', 'play', 'concert', 'opera', 'ballet', 'exhibit', 'cultural', 'history', 'book', 'reading'],
         'Nightlife': ['night', 'bar', 'club', 'dance', 'party', 'music', 'live music', 'dj', 'cocktail', 'lounge', 'late night'],
         'Relaxing & Casual': ['coffee', 'tea', 'chat', 'talk', 'walk', 'stroll', 'casual', 'relax', 'chill', 'low-key', 'simple', 'easy'],
-        'Active & Fitness': ['sport', 'yoga', 'fitness', 'gym', 'run', 'jog', 'swim', 'tennis', 'basketball', 'soccer', 'hike', 'bike', 'workout']
-    };
+        'Active & Fitness': ['sport', 'yoga', 'fitness', 'gym', 'run', 'jog', 'swim', 'tennis', 'basketball', 'soccer', 'hike', 'bike', 'workout'],
+        'Adult (18+)': ['adult', '18+', '21+', 'mature', 'intimate', 'romantic', 'wine bar', 'lounge', 'hotel', 'spa']
+    } as const;
     
     // Count matches for each category
-    const categoryScores = Object.entries(categoryKeywords).map(([category, keywords]) => ({
-        category: category as DateCategory,
-        score: keywords.filter(keyword => text.includes(keyword)).length
-    }));
+    (Object.keys(categoryKeywords) as Array<keyof typeof categoryKeywords>).forEach(category => {
+        const keywords = categoryKeywords[category];
+        const matchCount = keywords.filter(keyword => text.includes(keyword)).length;
+        if (matchCount > 0) {
+            categories.push(category as DateCategory);
+        }
+    });
     
-    // Sort by score and take top 2 categories with score > 0
-    const topCategories = categoryScores
-        .filter(cat => cat.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 2)
-        .map(cat => cat.category);
-    
-    return topCategories.length > 0 ? topCategories : ['Relaxing & Casual'];
+    return categories.length > 0 ? categories : ['Relaxing & Casual'];
 };
 
 export const optimizePhotoOrder = async (photos: string[]): Promise<string[]> => {
