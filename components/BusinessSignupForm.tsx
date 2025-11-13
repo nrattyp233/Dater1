@@ -4,7 +4,6 @@ import { DATE_CATEGORIES } from '../constants';
 import * as api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import type { ColorTheme } from '../constants';
-import { uploadFile, deleteFile } from '../utils/fileUpload';
 
 interface BusinessSignupFormProps {
     activeColorTheme: ColorTheme;
@@ -51,47 +50,14 @@ const BusinessSignupForm: React.FC<BusinessSignupFormProps> = ({ activeColorThem
         }
     };
     
-    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files?.[0]) return;
-        
-        const file = e.target.files[0];
-        if (!file.type.startsWith('image/')) {
-            showToast('Please upload a valid image file.', 'error');
-            return;
-        }
-
-        try {
-            // Show loading state
-            showToast('Uploading photo...', 'info');
-            
-            // Upload to Supabase Storage
-            const photoUrl = await uploadFile(file, 'photos', `businesses/${Date.now()}`);
-            
-            // Update local state with the new photo URL
-            setPhotos(prev => [...prev, photoUrl]);
-            
-            showToast('Photo uploaded successfully!', 'success');
-        } catch (error) {
-            console.error('Error uploading photo:', error);
-            showToast('Failed to upload photo. Please try again.', 'error');
-        } finally {
-            // Reset file input
-            e.target.value = '';
-        }
-    };
-
-    const handleRemovePhoto = async (photoUrl: string) => {
-        try {
-            // Remove from Supabase Storage
-            await deleteFile(photoUrl, 'photos');
-            
-            // Update local state
-            setPhotos(prev => prev.filter(p => p !== photoUrl));
-            
-            showToast('Photo removed', 'success');
-        } catch (error) {
-            console.error('Error removing photo:', error);
-            showToast('Failed to remove photo. Please try again.', 'error');
+    const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setPhotos(prev => [...prev, reader.result as string]);
+            };
+            reader.readAsDataURL(file);
         }
     };
     
@@ -142,19 +108,7 @@ const BusinessSignupForm: React.FC<BusinessSignupFormProps> = ({ activeColorThem
                         <label className="block text-sm font-medium text-gray-300 mb-2">Upload Photos</label>
                         <input type="file" accept="image/*" onChange={handlePhotoUpload} className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-pink/20 file:text-brand-light hover:file:bg-brand-pink/30"/>
                         <div className="mt-2 flex flex-wrap gap-2">
-                            {photos.map((photo, index) => (
-                                <div key={photo} className="relative group">
-                                    <img src={photo} alt={`Business photo ${index + 1}`} className="w-16 h-16 rounded-md object-cover" />
-                                    <button
-                                        type="button"
-                                        onClick={() => handleRemovePhoto(photo)}
-                                        className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
-                                        aria-label="Remove photo"
-                                    >
-                                        &times;
-                                    </button>
-                                </div>
-                            ))}
+                            {photos.map((photo, index) => <img key={index} src={photo} className="w-16 h-16 rounded-md object-cover" />)}
                         </div>
                      </div>
                      <button type="submit" disabled={isSubmitting} className={`w-full py-3 rounded-lg font-bold text-white transition-all duration-300 bg-gradient-to-r from-blue-500 to-cyan-500 hover:opacity-90 disabled:opacity-50`}>

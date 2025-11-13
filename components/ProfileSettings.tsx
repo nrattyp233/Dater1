@@ -6,7 +6,6 @@ import ProfileDetailCard from './ProfileDetailCard';
 import type { ColorTheme } from '../constants';
 import { optimizePhotoOrder, generateAppBackground } from '../services/geminiService';
 import { SkeletonLoader } from './SkeletonLoader';
-import { uploadFile, deleteFile } from '../utils/fileUpload';
 
 // --- START: BadgeDisplay Component ---
 // Defined here to avoid creating new files as per constraints
@@ -101,59 +100,28 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ currentUser, onSave, 
         setFormData(prev => ({ ...prev, interests: prev.interests.filter(i => i !== interestToRemove) }));
     };
 
-    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files?.[0]) return;
-        
-        if (formData.photos.length >= MAX_PHOTOS) {
-            showToast(`You can only have up to ${MAX_PHOTOS} photos.`, 'error');
-            return;
-        }
-
-        const file = e.target.files[0];
-        if (!file.type.startsWith('image/')) {
-            showToast('Please upload a valid image file.', 'error');
-            return;
-        }
-
-        try {
-            // Show loading state
-            showToast('Uploading photo...', 'info');
-            
-            // Upload to Supabase Storage
-            const photoUrl = await uploadFile(file, 'photos', `users/${currentUser.id}`);
-            
-            // Update form data with the new photo URL
-            setFormData(prev => ({
-                ...prev,
-                photos: [...prev.photos, photoUrl]
-            }));
-            
-            showToast('Photo uploaded successfully!', 'success');
-        } catch (error) {
-            console.error('Error uploading photo:', error);
-            showToast('Failed to upload photo. Please try again.', 'error');
-        } finally {
-            // Reset file input
-            e.target.value = '';
+    const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            if (formData.photos.length >= MAX_PHOTOS) {
+                showToast(`You can only have up to ${MAX_PHOTOS} photos.`, 'error');
+                return;
+            }
+            const file = e.target.files[0];
+            if (!file.type.startsWith('image/')) {
+                showToast('Please upload a valid image file.', 'error');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setFormData(prev => ({ ...prev, photos: [...prev.photos, reader.result as string] }));
+                showToast('Photo uploaded!', 'success');
+            };
+            reader.readAsDataURL(file);
         }
     };
 
-    const handleRemovePhoto = async (photoUrl: string) => {
-        try {
-            // Remove from Supabase Storage
-            await deleteFile(photoUrl, 'photos');
-            
-            // Update local state
-            setFormData(prev => ({
-                ...prev,
-                photos: prev.photos.filter(p => p !== photoUrl)
-            }));
-            
-            showToast('Photo removed', 'success');
-        } catch (error) {
-            console.error('Error removing photo:', error);
-            showToast('Failed to remove photo. Please try again.', 'error');
-        }
+    const handleRemovePhoto = (photoToRemove: string) => {
+        setFormData(prev => ({ ...prev, photos: prev.photos.filter(p => p !== photoToRemove) }));
     };
 
     const handleOptimizePhotos = async () => {
@@ -179,31 +147,19 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ currentUser, onSave, 
         }
     };
 
-    const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files?.[0]) return;
-        
-        const file = e.target.files[0];
-        if (!file.type.startsWith('image/')) {
-            showToast('Please upload a valid image file.', 'error');
-            return;
-        }
-
-        try {
-            showToast('Uploading background...', 'info');
-            
-            // Upload to Supabase Storage
-            const backgroundUrl = await uploadFile(file, 'backgrounds', `users/${currentUser.id}`);
-            
-            // Update the app background
-            onSetAppBackground(backgroundUrl);
-            
-            showToast('Background updated!', 'success');
-        } catch (error) {
-            console.error('Error uploading background:', error);
-            showToast('Failed to upload background. Please try again.', 'error');
-        } finally {
-            // Reset file input
-            e.target.value = '';
+    const handleBackgroundUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            if (!file.type.startsWith('image/')) {
+                showToast('Please upload a valid image file.', 'error');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                onSetAppBackground(reader.result as string);
+                showToast('Background updated!', 'success');
+            };
+            reader.readAsDataURL(file);
         }
     };
 
