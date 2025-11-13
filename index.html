@@ -10,6 +10,9 @@
       tailwind.config = {
         theme: {
           extend: {
+            fontFamily: {
+              montserrat: ['Montserrat', 'sans-serif'],
+            },
             colors: {
               'brand-pink': '#F91880',
               'brand-purple': '#A020F0',
@@ -45,6 +48,7 @@
 }
 </script>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500&display=swap');
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
@@ -69,6 +73,21 @@
   }
   .animate-slide-in-left {
       animation: slideInLeftFadeOut 2.5s ease-in-out forwards;
+  }
+  @keyframes animate-gradient-text {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .animate-text-gradient-flow {
+      animation: animate-gradient-text 25s ease infinite;
+  }
+  @keyframes animate-hue-rotate {
+    0% { filter: hue-rotate(0deg); }
+    100% { filter: hue-rotate(360deg); }
+  }
+  .animate-hue-cycle {
+      animation: animate-hue-rotate 25s linear infinite;
   }
 </style>
 </head>

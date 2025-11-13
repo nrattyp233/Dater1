@@ -33,9 +33,21 @@ const Header: React.FC<HeaderProps> = ({ currentView, setCurrentView, activeColo
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-dark-2/80 backdrop-blur-sm">
       <div className="container mx-auto px-4 h-20 flex justify-between items-center">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-emerald-500 text-transparent bg-clip-text">
-          Create-A-Date
-        </h1>
+        <div className="flex items-center gap-3">
+            <div className="w-9 h-9">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    {/* Heart Path */}
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#F91880"/>
+                    {/* Sparkle Path */}
+                    <path d="M12 6l1.06 2.54L15.5 9.5l-2.54 1.06L12 13l-1.06-2.54L8.5 9.5l2.54-1.06L12 6z" fill="white"/>
+                </svg>
+            </div>
+          <h1
+            className="text-2xl font-medium font-montserrat tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-brand-pink via-purple-500 to-cyan-400 bg-[length:200%_auto] animate-text-gradient-flow"
+          >
+            Create-A-Date
+          </h1>
+        </div>
         <nav className="flex items-center space-x-1 bg-dark-3 p-1 rounded-full">
           <NavButton isActive={currentView === View.Swipe} onClick={() => setCurrentView(View.Swipe)} ariaLabel="Swipe profiles" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
             <HeartIcon className="w-6 h-6" />
