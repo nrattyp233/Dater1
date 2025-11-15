@@ -22,6 +22,12 @@ import Auth from './components/Auth';
 import BusinessSignupForm from './components/BusinessSignupForm';
 import BusinessDetailModal from './components/BusinessDetailModal';
 import LeaderboardView from './components/LeaderboardView';
+import LandingPage from './components/LandingPage';
+
+// --- PRE-LAUNCH CONTROL ---
+// Set to `true` to show the landing page, `false` to show the full app.
+const PRE_LAUNCH_MODE = false;
+
 
 const MainApp: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(true);
@@ -528,7 +534,7 @@ const MainApp: React.FC = () => {
 
 const App: React.FC = () => (
     <ToastProvider>
-        <MainApp />
+        {PRE_LAUNCH_MODE ? <LandingPage /> : <MainApp />}
     </ToastProvider>
 );
 
