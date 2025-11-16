@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Create-A-Date - Find Your Match</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              montserrat: ['Montserrat', 'sans-serif'],
+            },
+            colors: {
+              'brand-pink': '#F91880',
+              'brand-purple': '#A020F0',
+              'brand-light': '#FFD7F3',
+              'dark-1': '#121212',
+              'dark-2': '#1E1E1E',
+              'dark-3': '#2A2A2A',
+              'light-1': '#F5F5F5',
+              'light-2': '#E0E0E0',
+            },
+            boxShadow: {
+              'glow-pink': '0 0 15px rgba(249, 24, 128, 0.5)',
+              'glow-purple': '0 0 15px rgba(160, 32, 240, 0.5)',
+              'glow-green': '0 0 15px rgba(74, 222, 128, 0.6)',
+              'glow-blue': '0 0 15px rgba(59, 130, 246, 0.6)',
+              'glow-yellow': '0 0 15px rgba(234, 179, 8, 0.6)',
+              'glow-orange': '0 0 15px rgba(249, 115, 22, 0.6)',
+              'glow-teal': '0 0 15px rgba(20, 184, 166, 0.6)',
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.1.1/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.12.0",
+    "react/": "https://esm.sh/react@^19.1.1/",
+    "react": "https://esm.sh/react@^19.1.1",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.44.4"
+  }
+}
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500&display=swap');
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  @keyframes slideInRightFadeOut {
+    0% { transform: translateX(100%); opacity: 0; }
+    20% { transform: translateX(-10%); opacity: 1; }
+    80% { transform: translateX(-10%); opacity: 1; }
+    100% { transform: translateX(-10%); opacity: 0; }
+  }
+  @keyframes slideInLeftFadeOut {
+    0% { transform: translateX(-100%); opacity: 0; }
+    20% { transform: translateX(10%); opacity: 1; }
+    80% { transform: translateX(10%); opacity: 1; }
+    100% { transform: translateX(10%); opacity: 0; }
+  }
+  .animate-slide-in-right {
+      animation: slideInRightFadeOut 2.5s ease-in-out forwards;
+  }
+  .animate-slide-in-left {
+      animation: slideInLeftFadeOut 2.5s ease-in-out forwards;
+  }
+  @keyframes animate-gradient-text {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .animate-text-gradient-flow {
+      animation: animate-gradient-text 25s ease infinite;
+  }
+  @keyframes animate-hue-rotate {
+    0% { filter: hue-rotate(0deg); }
+    100% { filter: hue-rotate(360deg); }
+  }
+  .animate-hue-cycle {
+      animation: animate-hue-rotate 25s linear infinite;
+  }
+</style>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-dark-1 text-light-1">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

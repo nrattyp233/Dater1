@@ -1,0 +1,7 @@
+{
+  "name": "Create-A-Date",
+  "description": "A cutting-edge dating app that combines traditional profile swiping with a unique 'date marketplace' where users can post date ideas and choose a partner to join them. Features AI-powered tools to help users create more engaging date descriptions.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
