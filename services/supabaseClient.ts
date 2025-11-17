@@ -1,6 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://vzkfkuzvumwdhfantyja.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6a2ZrdXp2dW13ZGhmYW50eWphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1OTYyNDEsImV4cCI6MjA3ODE3MjI0MX0.SE4XtjHD1LcUU-x1C7wSwCjHrvka8rIEvPBHlPB6_-Y';
+// FIX: Cast `import.meta` to `any` to resolve TypeScript error about missing `env` property.
+const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL;
+const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase URL and anonymous key must be set in your .env file. Create a .env file in the root directory with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

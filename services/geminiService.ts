@@ -2,10 +2,11 @@ import { GoogleGenAI, Type, Part } from "@google/genai";
 import { User, DateIdea, LocationSuggestion, Message, DateCategory, LocalEvent } from '../types';
 
 // Ensure you have your API_KEY in the environment variables
-const API_KEY = process.env.API_KEY;
+// FIX: Cast `import.meta` to `any` to resolve TypeScript error about missing `env` property.
+const API_KEY = (import.meta as any).env.VITE_API_KEY;
 
 if (!API_KEY) {
-  console.warn("API_KEY not found in environment variables. Gemini features will be disabled.");
+  console.warn("VITE_API_KEY not found in environment variables. Gemini features will be disabled.");
 }
 
 const ai = new GoogleGenAI({ apiKey: API_KEY! });
