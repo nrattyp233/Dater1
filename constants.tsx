@@ -1,9 +1,6 @@
 import React from 'react';
 import { Badge, DateCategory } from './types';
 
-// USER
-export const CURRENT_USER_ID = 1;
-
 // THEMES
 export interface ColorTheme {
   bg: string;
@@ -29,6 +26,19 @@ export const DATE_CATEGORIES: Record<DateCategory, { color: string }> = {
     'Relaxing & Casual': { color: 'bg-sky-500/20 text-sky-400 border-sky-500/30' },
     'Active & Fitness': { color: 'bg-red-500/20 text-red-400 border-red-500/30' },
     'Adult (18+)': { color: 'bg-rose-500/20 text-rose-400 border-rose-500/30' },
+};
+
+// FIX: Moved PLACEHOLDER_IMAGE_URL and CATEGORY_IMAGE_FALLBACKS here from DateMarketplace.tsx to fix import errors in App.tsx.
+export const PLACEHOLDER_IMAGE_URL = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=800&auto=format&fit=crop';
+
+export const CATEGORY_IMAGE_FALLBACKS: Record<DateCategory, string> = {
+    'Food & Drink': 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=800',
+    'Outdoors & Adventure': 'https://images.unsplash.com/photo-1501555088652-021faa106b9b?q=80&w=800',
+    'Arts & Culture': 'https://images.unsplash.com/photo-1531525645387-b14d8c6bd6ea?q=80&w=800',
+    'Nightlife': 'https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?q=80&w=800',
+    'Relaxing & Casual': 'https://images.unsplash.com/photo-1544991887-dba2d6da218d?q=80&w=800',
+    'Active & Fitness': 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=800',
+    'Adult (18+)': 'https://images.unsplash.com/photo-1534305242718-d014437b01b1?q=80&w=800'
 };
 
 // SVG Icons
@@ -76,7 +86,7 @@ export const PlusIcon = ({ className }: { className?: string }) => (
 
 export const CogIcon = ({ className }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61-.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0-.61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+        <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61-.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0-.61-.22l2-3.46c.12-.22.07.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
     </svg>
 );
 

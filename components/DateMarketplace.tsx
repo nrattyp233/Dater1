@@ -2,11 +2,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { DatePost, User, Gender, DateCategory, LocalEvent, Business, Deal } from '../types';
 import { SkeletonLoader } from './SkeletonLoader';
-import { MapPinIcon, AlertTriangleIcon, TicketIcon, PlusIcon, BuildingIcon, StarIcon, CrownIcon } from '../constants';
-import { DATE_CATEGORIES } from '../constants';
+// FIX: Moved image fallbacks to constants and consolidated imports.
+import { MapPinIcon, AlertTriangleIcon, TicketIcon, PlusIcon, BuildingIcon, StarIcon, CrownIcon, XIcon, DATE_CATEGORIES, PLACEHOLDER_IMAGE_URL, CATEGORY_IMAGE_FALLBACKS } from '../constants';
 import type { ColorTheme } from '../constants';
-
-const PLACEHOLDER_IMAGE_URL = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=800&auto=format&fit=crop';
 
 interface DateCardProps {
     datePost: DatePost;
@@ -139,20 +137,39 @@ const DateCard: React.FC<DateCardProps> = ({ datePost, allUsers, allBusinesses, 
 interface LocalEventCardProps {
     event: LocalEvent;
     onCreate: (event: LocalEvent) => void;
+    onViewDetails: (event: LocalEvent) => void;
 }
 
-const LocalEventCard: React.FC<LocalEventCardProps> = ({ event, onCreate }) => {
+const LocalEventCard: React.FC<LocalEventCardProps> = ({ event, onCreate, onViewDetails }) => {
+    // FIX: Added an onError handler to the image to fall back to a category image if the provided URL is broken.
+    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+        const target = e.currentTarget;
+        const fallbackSrc = CATEGORY_IMAGE_FALLBACKS[event.category] || PLACEHOLDER_IMAGE_URL;
+        if (target.src !== fallbackSrc) { // Prevent infinite loops if the fallback itself is broken
+            target.src = fallbackSrc;
+        }
+    };
+
     return (
         <div className="flex-shrink-0 w-72 bg-dark-2 rounded-2xl overflow-hidden border border-dark-3 shadow-lg group relative">
-            <img src={event.imageUrl?.trim() || PLACEHOLDER_IMAGE_URL} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent" />
-            <div className="relative p-4 flex flex-col justify-end h-full text-white min-h-[200px]">
-                <div className="flex-grow"></div>
-                <h4 className="font-bold text-lg">{event.title}</h4>
-                <p className="text-sm text-gray-300">{event.location}</p>
+             <div className="relative h-full">
+                <button onClick={() => onViewDetails(event)} className="w-full h-full text-left">
+                    <img 
+                        src={event.imageUrl?.trim() || CATEGORY_IMAGE_FALLBACKS[event.category] || PLACEHOLDER_IMAGE_URL} 
+                        onError={handleImageError}
+                        alt={event.title} 
+                        className="w-full h-full object-cover absolute inset-0" 
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent" />
+                    <div className="relative p-4 flex flex-col justify-end h-full text-white min-h-[200px]">
+                        <div className="flex-grow"></div>
+                        <h4 className="font-bold text-lg">{event.title}</h4>
+                        <p className="text-sm text-gray-300">{event.location}</p>
+                    </div>
+                </button>
                 <button 
                     onClick={() => onCreate(event)}
-                    className="mt-3 w-full py-2 rounded-lg font-bold text-white bg-blue-600/80 backdrop-blur-sm hover:bg-blue-600 transition-all duration-300 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0"
+                    className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] py-2 rounded-lg font-bold text-white bg-blue-600/80 backdrop-blur-sm hover:bg-blue-600 transition-all duration-300 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0"
                     aria-label={`Create a date from ${event.title}`}
                 >
                     <PlusIcon className="w-5 h-5"/>
@@ -171,9 +188,24 @@ interface BusinessCardProps {
 
 const BusinessCard: React.FC<BusinessCardProps> = ({ business, deals, onView }) => {
     const hasDeals = deals.some(d => d.businessId === business.id);
+    
+    // FIX: Added an onError handler to the image for robust fallback.
+    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+        const target = e.currentTarget;
+        const fallbackSrc = CATEGORY_IMAGE_FALLBACKS[business.category] || PLACEHOLDER_IMAGE_URL;
+        if (target.src !== fallbackSrc) {
+            target.src = fallbackSrc;
+        }
+    };
+
     return (
         <button onClick={() => onView(business)} className="flex-shrink-0 w-80 bg-dark-2 rounded-2xl overflow-hidden border border-dark-3 shadow-lg group relative text-left">
-            <img src={(business.photos && business.photos[0]?.trim()) || PLACEHOLDER_IMAGE_URL} alt={business.name} className="w-full h-full object-cover absolute inset-0" />
+            <img 
+                src={(business.photos && business.photos[0]?.trim()) || CATEGORY_IMAGE_FALLBACKS[business.category] || PLACEHOLDER_IMAGE_URL} 
+                onError={handleImageError}
+                alt={business.name} 
+                className="w-full h-full object-cover absolute inset-0" 
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent" />
             {hasDeals && (
                  <div className="absolute top-3 right-3 bg-yellow-400 text-black text-xs font-bold px-2.5 py-1 rounded-full shadow-md">
@@ -188,6 +220,56 @@ const BusinessCard: React.FC<BusinessCardProps> = ({ business, deals, onView }) 
         </button>
     );
 }
+
+// --- NEW COMPONENT: EventDetailModal ---
+interface EventDetailModalProps {
+    event: LocalEvent | null;
+    onClose: () => void;
+    onCreate: (event: LocalEvent) => void;
+}
+
+const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onCreate }) => {
+    if (!event) return null;
+
+    const handleCreate = () => {
+        onCreate(event);
+        onClose();
+    };
+
+    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+        const target = e.currentTarget;
+        const fallbackSrc = CATEGORY_IMAGE_FALLBACKS[event.category] || PLACEHOLDER_IMAGE_URL;
+        if (target.src !== fallbackSrc) {
+            target.src = fallbackSrc;
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-dark-2 rounded-2xl w-full max-w-lg border border-dark-3 shadow-lg overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="relative h-64 w-full bg-dark-3">
+                    <img src={event.imageUrl} onError={handleImageError} alt={event.title} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                     <h3 className="absolute bottom-4 left-4 text-3xl font-bold text-white shadow-2xl">{event.title}</h3>
+                </div>
+                <div className="p-6">
+                    <p className="font-semibold text-gray-300">{event.location} • {event.date}</p>
+                    <p className="text-gray-300 mt-4">{event.description}</p>
+                    <a href={event.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 font-semibold mt-4 inline-block">
+                        View Original Source &rarr;
+                    </a>
+                </div>
+                <div className="p-4 border-t border-dark-3 mt-auto">
+                    <button onClick={handleCreate} className="w-full py-3 rounded-lg font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all">
+                        Create Date From This Event
+                    </button>
+                </div>
+                 <button onClick={onClose} className="absolute top-3 right-3 bg-dark-3 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg hover:bg-dark-3/80 z-10">&times;</button>
+            </div>
+        </div>
+    );
+};
+
 
 interface DateMarketplaceProps {
     datePosts: DatePost[];
@@ -210,11 +292,13 @@ interface DateMarketplaceProps {
     onSearchLocationChange: (location: string) => void;
     isEventsLoading: boolean;
     onPremiumFeatureClick: () => void;
+    onSeeAll: () => void;
 }
 
-const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, businesses, deals, onToggleInterest, onPriorityInterest, currentUserId, gender, isLoading, onViewProfile, onViewBusiness, activeColorTheme, localEvents, onCreateDateFromEvent, searchLocation, effectiveSearchLocation, isSearchExpanded, onSearchLocationChange, isEventsLoading, onPremiumFeatureClick }) => {
+const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, businesses, deals, onToggleInterest, onPriorityInterest, currentUserId, gender, isLoading, onViewProfile, onViewBusiness, activeColorTheme, localEvents, onCreateDateFromEvent, searchLocation, effectiveSearchLocation, isSearchExpanded, onSearchLocationChange, isEventsLoading, onPremiumFeatureClick, onSeeAll }) => {
     const [activeCategory, setActiveCategory] = useState<DateCategory | 'All'>('All');
     const [tempSearch, setTempSearch] = useState(searchLocation);
+    const [selectedEvent, setSelectedEvent] = useState<LocalEvent | null>(null);
     
     useEffect(() => {
         setTempSearch(searchLocation);
@@ -262,12 +346,16 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
 
     return (
         <div className="max-w-2xl mx-auto">
+             <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} onCreate={onCreateDateFromEvent} />
              <h2 className={`text-3xl font-bold text-center mb-8 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>Date Marketplace</h2>
              
             <div className="mb-12">
-                <div className="flex items-center gap-3 mb-4">
-                    <TicketIcon className="w-6 h-6 text-cyan-400" />
-                    <h3 className="text-2xl font-bold text-white capitalize">{effectiveSearchLocation ? `Happening in ${effectiveSearchLocation}` : 'Search a City to Find Events'}</h3>
+                <div className="flex items-center justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-3">
+                        <TicketIcon className="w-6 h-6 text-cyan-400" />
+                        <h3 className="text-2xl font-bold text-white capitalize">{effectiveSearchLocation ? `Happening in ${effectiveSearchLocation}` : 'Search a City to Find Events'}</h3>
+                    </div>
+                     <button onClick={onSeeAll} className="text-cyan-400 font-semibold hover:text-cyan-300 transition-colors">See All &rarr;</button>
                 </div>
                 {isEventsLoading ? (
                     <div className="flex gap-4">
@@ -279,7 +367,7 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
                     localEvents.length > 0 ? (
                         <div className="flex gap-4 overflow-x-auto scrollbar-hide -m-2 p-2">
                             {localEvents.map(event => (
-                                <LocalEventCard key={event.id} event={event} onCreate={onCreateDateFromEvent} />
+                                <LocalEventCard key={event.id} event={event} onCreate={onCreateDateFromEvent} onViewDetails={setSelectedEvent} />
                             ))}
                         </div>
                     ) : (

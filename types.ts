@@ -80,6 +80,7 @@ export enum View {
   Chat,
   BusinessSignup,
   Leaderboard,
+  AllEvents,
 }
 
 export interface LocalEvent {
@@ -90,7 +91,7 @@ export interface LocalEvent {
   location: string;
   date: string;
   imageUrl: string;
-  source: string;
+  sourceUrl: string;
   price?: string;
 }
 

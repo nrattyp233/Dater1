@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { View, User, DatePost, Message, Badge, LocalEvent, Business, Deal } from './types';
-import { CURRENT_USER_ID, colorThemes, ColorTheme, BADGES } from './constants';
+import { View, User, DatePost, Message, Badge, LocalEvent, Business, Deal, DateCategory } from './types';
+import { colorThemes, ColorTheme, BADGES, TicketIcon, PlusIcon, CATEGORY_IMAGE_FALLBACKS, PLACEHOLDER_IMAGE_URL } from './constants';
 import * as api from './services/api';
 import { categorizeDatePost, getCityFromCoords, getNearbyMajorCity } from './services/geminiService';
 import { useToast, ToastProvider } from './contexts/ToastContext';
+import { supabase } from './services/supabaseClient';
+import { Session } from '@supabase/supabase-js';
 
 import Header from './components/Header';
 import SwipeDeck from './components/SwipeDeck';
@@ -24,13 +26,77 @@ import BusinessDetailModal from './components/BusinessDetailModal';
 import LeaderboardView from './components/LeaderboardView';
 import LandingPage from './components/LandingPage';
 
-// --- PRE-LAUNCH CONTROL ---
-// Set to `true` to show the landing page, `false` to show the full app.
 const PRE_LAUNCH_MODE = false;
+
+// --- NEW COMPONENT: AllEventsView ---
+interface AllEventsViewProps {
+    events: LocalEvent[];
+    location: string;
+    onCreateDateFromEvent: (event: LocalEvent) => void;
+    onBack: () => void;
+    activeColorTheme: ColorTheme;
+}
+
+const AllEventsView: React.FC<AllEventsViewProps> = ({ events, location, onCreateDateFromEvent, onBack, activeColorTheme }) => {
+    // Re-defining LocalEventCard here to avoid massive refactoring or prop drilling.
+    const LocalEventCard: React.FC<{ event: LocalEvent; onCreate: (event: LocalEvent) => void; }> = ({ event, onCreate }) => {
+        const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+            const target = e.currentTarget;
+            const fallbackSrc = CATEGORY_IMAGE_FALLBACKS[event.category] || PLACEHOLDER_IMAGE_URL;
+            if (target.src !== fallbackSrc) {
+                target.src = fallbackSrc;
+            }
+        };
+
+        return (
+            <div className="bg-dark-2 rounded-2xl overflow-hidden border border-dark-3 shadow-lg group relative">
+                <img 
+                    src={event.imageUrl?.trim() || CATEGORY_IMAGE_FALLBACKS[event.category] || PLACEHOLDER_IMAGE_URL} 
+                    onError={handleImageError}
+                    alt={event.title} 
+                    className="w-full h-40 object-cover" 
+                />
+                <div className="p-4">
+                    <h4 className="font-bold text-lg text-white truncate">{event.title}</h4>
+                    <p className="text-sm text-gray-300 truncate">{event.location}</p>
+                    <button 
+                        onClick={() => onCreate(event)}
+                        className="mt-3 w-full py-2 rounded-lg font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all duration-300 flex items-center justify-center gap-2"
+                        aria-label={`Create a date from ${event.title}`}
+                    >
+                        <PlusIcon className="w-5 h-5"/>
+                        Create Date
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="max-w-4xl mx-auto">
+            <div className="flex items-center gap-4 mb-8">
+                <button onClick={onBack} className="text-gray-300 hover:text-white">&larr; Back to Marketplace</button>
+                <h2 className={`text-3xl font-bold bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>
+                    All Events in {location}
+                </h2>
+            </div>
+            {events.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {events.map(event => (
+                        <LocalEventCard key={event.id} event={event} onCreate={onCreateDateFromEvent} />
+                    ))}
+                </div>
+            ) : (
+                <p className="text-center text-gray-400">No events found for this location.</p>
+            )}
+        </div>
+    );
+};
 
 
 const MainApp: React.FC = () => {
-    const [isAuthenticated, setIsAuthenticated] = useState(true);
+    const [session, setSession] = useState<Session | null>(null);
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [currentView, setCurrentView] = useState<View>(View.Swipe);
     const [users, setUsers] = useState<User[]>([]);
     const [datePosts, setDatePosts] = useState<DatePost[]>([]);
@@ -42,14 +108,11 @@ const MainApp: React.FC = () => {
     const [lastSwipedUserId, setLastSwipedUserId] = useState<number | null>(null);
     const { showToast } = useToast();
     
-    // State for dynamic color theme
     const [activeColorTheme, setActiveColorTheme] = useState<ColorTheme>(colorThemes[0]);
     const lastColorIndex = useRef(0);
 
-    // State for customizable app background
     const [appBackground, setAppBackground] = useState<string | null>(null);
 
-    // State for local events and location search
     const [localEvents, setLocalEvents] = useState<LocalEvent[]>([]);
     const [searchLocation, setSearchLocation] = useState('');
     const [effectiveSearchLocation, setEffectiveSearchLocation] = useState('');
@@ -57,13 +120,11 @@ const MainApp: React.FC = () => {
     const [isEventsLoading, setIsEventsLoading] = useState(false);
     const [eventForDate, setEventForDate] = useState<LocalEvent | null>(null);
     
-    // State for business features
     const [businesses, setBusinesses] = useState<Business[]>([]);
-    const [deals, setDeals] = useState<Deal[]>([]); // Assuming we might fetch all deals at once
+    const [deals, setDeals] = useState<Deal[]>([]);
     const [isBusinessLoading, setIsBusinessLoading] = useState(true);
     const [businessForDate, setBusinessForDate] = useState<{ business: Business; deal?: Deal } | null>(null);
 
-    // State for modals, centralized here
     const [selectedUserForModal, setSelectedUserForModal] = useState<User | null>(null);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [isIcebreakerModalOpen, setIsIcebreakerModalOpen] = useState(false);
@@ -74,83 +135,108 @@ const MainApp: React.FC = () => {
     const [selectedBusinessForModal, setSelectedBusinessForModal] = useState<Business | null>(null);
     const [isBusinessModalOpen, setIsBusinessModalOpen] = useState(false);
 
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+        });
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
 
     useEffect(() => {
         const fetchInitialData = async () => {
+            if (!session) {
+                setCurrentUser(null);
+                setIsLoading(false);
+                return;
+            }
+
             try {
                 setIsLoading(true);
                 setIsBusinessLoading(true);
                 const savedBackground = localStorage.getItem('appBackground');
                 if (savedBackground) setAppBackground(savedBackground);
-
-                // Attempt to get user's location
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        async (position) => {
-                            try {
-                                const city = await getCityFromCoords(
-                                    position.coords.latitude,
-                                    position.coords.longitude
-                                );
-                                showToast(`Location found! Showing local dates for ${city}.`, 'info');
-                                setSearchLocation(city);
-                            } catch (geoError) {
-                                console.error("Reverse geocoding failed:", geoError);
-                                showToast("Could not determine city from your location. Please search manually.", 'info');
-                            }
-                        },
-                        (error) => {
-                            console.warn(`Geolocation error: ${error.message}`);
-                            showToast("Could not get your location. Please search for a city.", 'info');
-                        }
-                    );
+                
+                const userProfile = await api.getCurrentUserProfile();
+                if (userProfile) {
+                    setCurrentUser(userProfile);
+                    // Now fetch data that depends on the current user
+                    const [
+                        fetchedUsers, 
+                        fetchedDatePosts, 
+                        fetchedMessages, 
+                        fetchedMatches,
+                        fetchedSwipedLeftIds,
+                        fetchedBusinesses,
+                        fetchedDeals
+                    ] = await Promise.all([
+                        api.getUsers(), 
+                        api.getDatePosts(), 
+                        api.getMessages(),
+                        api.getMatches(userProfile.id),
+                        api.getSwipedLeftIds(userProfile.id),
+                        api.getBusinesses(),
+                        api.getDealsForBusiness(0),
+                    ]);
+                    setUsers(fetchedUsers);
+                    setDatePosts(fetchedDatePosts);
+                    setMessages(fetchedMessages);
+                    setMatches(fetchedMatches);
+                    setSwipedLeftIds(fetchedSwipedLeftIds);
+                    setBusinesses(fetchedBusinesses);
+                    setDeals(fetchedDeals);
                 } else {
-                    showToast("Geolocation is not supported by your browser. Please search for a city.", 'info');
+                     showToast('Could not load your profile.', 'error');
                 }
-
-                const [
-                    fetchedUsers, 
-                    fetchedDatePosts, 
-                    fetchedMessages, 
-                    fetchedMatches,
-                    fetchedSwipedLeftIds,
-                    fetchedBusinesses,
-                    // In a real app, you might fetch deals per business, but for mock it's ok
-                    fetchedDeals
-                ] = await Promise.all([
-                    api.getUsers(), 
-                    api.getDatePosts(), 
-                    api.getMessages(),
-                    api.getMatches(CURRENT_USER_ID),
-                    api.getSwipedLeftIds(CURRENT_USER_ID),
-                    api.getBusinesses(),
-                    api.getDealsForBusiness(0), // Dummy call to get all deals
-                ]);
-                setUsers(fetchedUsers);
-                setDatePosts(fetchedDatePosts);
-                setMessages(fetchedMessages);
-                setMatches(fetchedMatches);
-                setSwipedLeftIds(fetchedSwipedLeftIds);
-                setBusinesses(fetchedBusinesses);
-                setDeals(fetchedDeals);
-
-            } catch (error) {
-                showToast('Failed to load app data. Please refresh.', 'error');
+            } catch (error: any) {
+                showToast(error.message || 'Failed to load app data. Please refresh.', 'error');
+                // If profile loading/creation fails critically, log the user out to return to a stable state.
+                await supabase.auth.signOut();
+                setCurrentUser(null);
             } finally {
                 setIsLoading(false);
                 setIsBusinessLoading(false);
             }
         };
 
-        if (isAuthenticated) {
-            fetchInitialData();
+        fetchInitialData();
+    }, [session, showToast]);
+    
+    // FIX: Added useEffect for automatic geolocation on app startup.
+    useEffect(() => {
+        // This effect should only run once when the user is logged in and has no location set.
+        if (session && !searchLocation) {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    async (position) => {
+                        try {
+                            const city = await getCityFromCoords(position.coords.latitude, position.coords.longitude);
+                            setSearchLocation(city);
+                            showToast(`Location automatically set to ${city}`, 'info');
+                        } catch (error) {
+                            showToast('Could not automatically determine your city. Please search manually.', 'error');
+                        }
+                    },
+                    (error) => {
+                        console.warn(`Geolocation error: ${error.message}`);
+                        showToast('Location access was denied. Please search for a city to find events.', 'info');
+                    }
+                );
+            } else {
+                showToast('Geolocation is not supported by your browser. Please search for a city.', 'info');
+            }
         }
-    }, [showToast, isAuthenticated]);
+    }, [session, searchLocation, showToast]);
+
 
     // Effect for fetching local events and expanding search if necessary
     useEffect(() => {
         const fetchAndExpandSearch = async () => {
-            if (!isAuthenticated || !searchLocation) {
+            if (!session || !searchLocation) {
                 setLocalEvents([]);
                 setEffectiveSearchLocation('');
                 setIsSearchExpanded(false);
@@ -159,33 +245,26 @@ const MainApp: React.FC = () => {
             
             setIsEventsLoading(true);
             try {
-                // 1. Initial Search
                 const initialEvents = await api.getLocalEvents(searchLocation);
                 const initialPostsCount = datePosts.filter(p => p.location.toLowerCase().includes(searchLocation.toLowerCase())).length;
                 const totalResults = initialEvents.length + initialPostsCount;
 
-                // 2. Check Threshold
                 const MIN_RESULTS_THRESHOLD = 5;
                 if (totalResults < MIN_RESULTS_THRESHOLD) {
                     showToast('Not many results. Expanding search to nearby areas...', 'info');
-                    
-                    // 3. Find Nearby Major City
                     const majorCity = await getNearbyMajorCity(searchLocation);
                     
                     if (majorCity && majorCity.toLowerCase() !== searchLocation.toLowerCase()) {
-                        // 4. Expanded Search
                         const expandedEvents = await api.getLocalEvents(majorCity);
                         setLocalEvents(expandedEvents);
                         setEffectiveSearchLocation(majorCity);
                         setIsSearchExpanded(true);
                     } else {
-                        // No major city found or it's the same, use initial results
                         setLocalEvents(initialEvents);
                         setEffectiveSearchLocation(searchLocation);
                         setIsSearchExpanded(false);
                     }
                 } else {
-                    // 5. Sufficient Results, No Expansion Needed
                     setLocalEvents(initialEvents);
                     setEffectiveSearchLocation(searchLocation);
                     setIsSearchExpanded(false);
@@ -201,7 +280,7 @@ const MainApp: React.FC = () => {
         };
 
         fetchAndExpandSearch();
-    }, [searchLocation, isAuthenticated, showToast, datePosts]);
+    }, [searchLocation, session, showToast, datePosts]);
 
 
     useEffect(() => {
@@ -212,16 +291,13 @@ const MainApp: React.FC = () => {
         setActiveColorTheme(colorThemes[newIndex]);
     }, [currentView]);
 
-
-    const currentUser = useMemo(() => users.find(u => u.id === CURRENT_USER_ID), [users]);
-
     const matchedUsers = useMemo(() => {
         return users.filter(user => matches.includes(user.id));
     }, [users, matches]);
     
     const sentMessageCount = useMemo(() => {
         if (!currentUser || currentUser.isPremium) return 0;
-        return messages.filter(m => m.senderId === CURRENT_USER_ID).length;
+        return messages.filter(m => m.senderId === currentUser.id).length;
     }, [messages, currentUser]);
     
     const FREE_MESSAGE_LIMIT = 20;
@@ -229,7 +305,7 @@ const MainApp: React.FC = () => {
     const usersForSwiping = useMemo(() => {
         if (!currentUser) return [];
         return users.filter(u => {
-            const isNotCurrentUser = u.id !== CURRENT_USER_ID;
+            const isNotCurrentUser = u.id !== currentUser.id;
             const isNotMatched = !matches.includes(u.id);
             const isNotSwipedLeft = !swipedLeftIds.includes(u.id);
             const isNotSwipedRight = !swipedRightIds.includes(u.id);
@@ -242,18 +318,15 @@ const MainApp: React.FC = () => {
         });
     }, [users, matches, swipedLeftIds, swipedRightIds, currentUser]);
     
-    const myDates = datePosts.filter(d => d.createdBy === CURRENT_USER_ID);
+    const myDates = datePosts.filter(d => currentUser && d.createdBy === currentUser.id);
     
     const earnBadge = (badgeId: Badge['id']) => {
-        const user = users.find(u => u.id === CURRENT_USER_ID);
-        if (!user || user.earnedBadgeIds?.includes(badgeId)) {
-            return;
-        }
+        if (!currentUser || currentUser.earnedBadgeIds?.includes(badgeId)) return;
 
         showToast(`Badge Unlocked: ${BADGES[badgeId].name}!`, 'success');
-        const updatedUser = { ...user, earnedBadgeIds: [...(user.earnedBadgeIds || []), badgeId] };
+        const updatedUser = { ...currentUser, earnedBadgeIds: [...(currentUser.earnedBadgeIds || []), badgeId] };
         api.updateUser(updatedUser).then(savedUser => {
-            setUsers(prevUsers => prevUsers.map(u => u.id === CURRENT_USER_ID ? savedUser : u));
+            setCurrentUser(savedUser);
         });
     };
 
@@ -283,8 +356,6 @@ const MainApp: React.FC = () => {
         try {
             const { isMatch } = await api.recordSuperLike(currentUser.id, userId);
             setSwipedRightIds(prev => [...prev, userId]);
-            // In our mock API, a super like behaves like a normal swipe, but we give a special toast.
-            // A real backend would handle the special notification.
             if (isMatch) {
                 setMatches(prev => [...prev, userId]);
                 const matchedUser = users.find(u => u.id === userId);
@@ -344,7 +415,6 @@ const MainApp: React.FC = () => {
 
     const handleCreateDate = async (newDateData: Omit<DatePost, 'id' | 'createdBy' | 'applicants' | 'chosenApplicantId' | 'categories'>) => {
         if (!currentUser) return;
-
         showToast('AI is categorizing your date...', 'info');
         try {
             const categories = await categorizeDatePost(newDateData.title, newDateData.description);
@@ -360,7 +430,6 @@ const MainApp: React.FC = () => {
             showToast('Your date has been posted!', 'success');
             setCurrentView(View.Dates);
 
-            // Badge Logic
             if (myDates.length === 0) earnBadge('first_date');
             if (myDates.length === 2) earnBadge('prolific_planner');
             const adventurousKeywords = ['hike', 'outdoor', 'adventure', 'explore', 'nature', 'mountain'];
@@ -397,7 +466,7 @@ const MainApp: React.FC = () => {
     const handleUpdateProfile = async (updatedUser: User) => {
         try {
             const savedUser = await api.updateUser(updatedUser);
-            setUsers(prevUsers => prevUsers.map(u => u.id === savedUser.id ? savedUser : u));
+            setCurrentUser(savedUser);
             showToast('Profile saved successfully!', 'success');
         } catch(error) {
             showToast('Failed to save profile.', 'error');
@@ -411,11 +480,10 @@ const MainApp: React.FC = () => {
             showToast(`You've used your ${FREE_MESSAGE_LIMIT} free messages. Upgrade to Premium for unlimited chat!`, 'info');
             return;
         }
-
         if (messages.filter(m => m.senderId === currentUser.id).length === 4) earnBadge('starter');
         
         try {
-            const newMessage = await api.sendMessage(CURRENT_USER_ID, receiverId, text);
+            const newMessage = await api.sendMessage(currentUser.id, receiverId, text);
             setMessages(prev => [...prev, newMessage]);
         } catch (error) {
             showToast('Failed to send message.', 'error');
@@ -427,23 +495,10 @@ const MainApp: React.FC = () => {
         if (background) localStorage.setItem('appBackground', background);
         else localStorage.removeItem('appBackground');
     };
-
-    const handleCreateDateFromEvent = (event: LocalEvent) => {
-        setEventForDate(event);
-        setCurrentView(View.Create);
-        showToast('Pre-filled date from event!', 'info');
-    };
+    const handleCreateDateFromEvent = (event: LocalEvent) => { setEventForDate(event); setCurrentView(View.Create); showToast('Pre-filled date from event!', 'info'); };
     const clearEventForDate = () => setEventForDate(null);
-
-    const handleCreateDateFromBusiness = (business: Business, deal?: Deal) => {
-        setBusinessForDate({ business, deal });
-        setCurrentView(View.Create);
-        showToast(`Planning a date at ${business.name}!`, 'info');
-    };
+    const handleCreateDateFromBusiness = (business: Business, deal?: Deal) => { setBusinessForDate({ business, deal }); setCurrentView(View.Create); showToast(`Planning a date at ${business.name}!`, 'info'); };
     const clearBusinessForDate = () => setBusinessForDate(null);
-
-
-    // Modal Handlers
     const handleViewProfile = (user: User) => { setSelectedUserForModal(user); setIsProfileModalOpen(true); };
     const handleCloseProfile = () => { setIsProfileModalOpen(false); setTimeout(() => setSelectedUserForModal(null), 300); };
     const handleViewBusiness = (business: Business) => { setSelectedBusinessForModal(business); setIsBusinessModalOpen(true); };
@@ -457,75 +512,42 @@ const MainApp: React.FC = () => {
     const handleOpenMonetizationModal = () => setIsMonetizationModalOpen(true);
     const handleCloseMonetizationModal = () => setIsMonetizationModalOpen(false);
     const handleUpgradeToPremium = () => { if (currentUser) { handleUpdateProfile({ ...currentUser, isPremium: true }); handleCloseMonetizationModal(); showToast('Congratulations! You are now a Create-A-Date Premium member.', 'success'); } };
-
-    const handleSignOut = () => { setIsAuthenticated(false); setCurrentView(View.Swipe); showToast("You've been signed out.", "info"); };
+    const handleSignOut = async () => { await supabase.auth.signOut(); setCurrentUser(null); setCurrentView(View.Swipe); showToast("You've been signed out.", "info"); };
 
     const renderView = () => {
-        if (isLoading && isEventsLoading && isBusinessLoading) return <div className="text-center pt-20 text-xl font-semibold">Loading Create-A-Date...</div>;
-        if (!currentUser && !isLoading) return <div className="text-center text-red-500">Error: Could not load current user data. Please check your Supabase connection and ensure user with ID 1 exists.</div>;
+        if (isLoading || (session && !currentUser)) return <div className="text-center pt-20 text-xl font-semibold">Loading Your Profile...</div>;
+        if (!currentUser) return <div className="text-center text-red-500">Error: Could not load user data.</div>;
 
         switch (currentView) {
-            case View.Swipe:
-                return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onSuperLike={handleSuperLike} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} />;
-            case View.Dates:
-                return <DateMarketplace 
-                            datePosts={datePosts} 
-                            allUsers={users} 
-                            businesses={businesses} 
-                            deals={deals} 
-                            onToggleInterest={handleToggleInterest} 
-                            onPriorityInterest={handlePriorityInterest} 
-                            currentUserId={CURRENT_USER_ID} 
-                            gender={currentUser?.gender} 
-                            isLoading={isLoading} 
-                            onViewProfile={handleViewProfile} 
-                            onViewBusiness={handleViewBusiness} 
-                            activeColorTheme={activeColorTheme} 
-                            localEvents={localEvents} 
-                            onCreateDateFromEvent={handleCreateDateFromEvent} 
-                            isEventsLoading={isEventsLoading} 
-                            searchLocation={searchLocation}
-                            effectiveSearchLocation={effectiveSearchLocation}
-                            isSearchExpanded={isSearchExpanded}
-                            onSearchLocationChange={setSearchLocation} 
-                            onPremiumFeatureClick={handleOpenMonetizationModal} 
-                        />;
-            case View.Create:
-                return <CreateDateForm onCreateDate={handleCreateDate} currentUser={currentUser!} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} eventForDate={eventForDate} onClearEventForDate={clearEventForDate} businessForDate={businessForDate} onClearBusinessForDate={clearBusinessForDate} />;
-            case View.Matches:
-                return <MatchesView matchedUsers={matchedUsers} currentUser={currentUser!} onViewProfile={handleViewProfile} onPlanDate={handlePlanDate} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
-             case View.Chat:
-                return <ChatView currentUser={currentUser!} matchedUsers={matchedUsers} allUsers={users} messages={messages} onSendMessage={handleSendMessage} onViewProfile={handleViewProfile} isChatDisabled={!currentUser?.isPremium && sentMessageCount >= FREE_MESSAGE_LIMIT} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
-            case View.MyDates:
-                return <MyDatesManager myDates={myDates} allUsers={users} onChooseApplicant={handleChooseApplicant} onDeleteDate={handleDeleteDate} gender={currentUser?.gender} onViewProfile={handleViewProfile} activeColorTheme={activeColorTheme} />;
-            case View.BusinessSignup:
-                return <BusinessSignupForm activeColorTheme={activeColorTheme} />;
-            case View.Leaderboard:
-                return <LeaderboardView activeColorTheme={activeColorTheme} onViewProfile={handleViewProfile} />;
-            case View.Profile:
-                return <ProfileSettings currentUser={currentUser!} onSave={handleUpdateProfile} onGetFeedback={handleGetProfileFeedback} activeColorTheme={activeColorTheme} onSignOut={handleSignOut} onPremiumFeatureClick={handleOpenMonetizationModal} onSetAppBackground={handleSetAppBackground} />;
-            default:
-                return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onSuperLike={handleSuperLike} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} />;
+            case View.Swipe: return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onSuperLike={handleSuperLike} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} />;
+            case View.Dates: return <DateMarketplace datePosts={datePosts} allUsers={users} businesses={businesses} deals={deals} onToggleInterest={handleToggleInterest} onPriorityInterest={handlePriorityInterest} currentUserId={currentUser.id} gender={currentUser?.gender} isLoading={isLoading} onViewProfile={handleViewProfile} onViewBusiness={handleViewBusiness} activeColorTheme={activeColorTheme} localEvents={localEvents} onCreateDateFromEvent={handleCreateDateFromEvent} isEventsLoading={isEventsLoading} searchLocation={searchLocation} effectiveSearchLocation={effectiveSearchLocation} isSearchExpanded={isSearchExpanded} onSearchLocationChange={setSearchLocation} onPremiumFeatureClick={handleOpenMonetizationModal} onSeeAll={() => setCurrentView(View.AllEvents)} />;
+            case View.Create: return <CreateDateForm onCreateDate={handleCreateDate} currentUser={currentUser} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} eventForDate={eventForDate} onClearEventForDate={clearEventForDate} businessForDate={businessForDate} onClearBusinessForDate={clearBusinessForDate} />;
+            case View.Matches: return <MatchesView matchedUsers={matchedUsers} currentUser={currentUser} onViewProfile={handleViewProfile} onPlanDate={handlePlanDate} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
+            case View.Chat: return <ChatView currentUser={currentUser} matchedUsers={matchedUsers} allUsers={users} messages={messages} onSendMessage={handleSendMessage} onViewProfile={handleViewProfile} isChatDisabled={!currentUser?.isPremium && sentMessageCount >= FREE_MESSAGE_LIMIT} activeColorTheme={activeColorTheme} onPremiumFeatureClick={handleOpenMonetizationModal} />;
+            case View.MyDates: return <MyDatesManager myDates={myDates} allUsers={users} onChooseApplicant={handleChooseApplicant} onDeleteDate={handleDeleteDate} gender={currentUser?.gender} onViewProfile={handleViewProfile} activeColorTheme={activeColorTheme} />;
+            case View.BusinessSignup: return <BusinessSignupForm activeColorTheme={activeColorTheme} />;
+            case View.Leaderboard: return <LeaderboardView activeColorTheme={activeColorTheme} onViewProfile={handleViewProfile} />;
+            case View.Profile: return <ProfileSettings currentUser={currentUser} onSave={handleUpdateProfile} onGetFeedback={handleGetProfileFeedback} activeColorTheme={activeColorTheme} onSignOut={handleSignOut} onPremiumFeatureClick={handleOpenMonetizationModal} onSetAppBackground={handleSetAppBackground} />;
+            case View.AllEvents: return <AllEventsView events={localEvents} location={effectiveSearchLocation} onCreateDateFromEvent={handleCreateDateFromEvent} onBack={() => setCurrentView(View.Dates)} activeColorTheme={activeColorTheme} />;
+            default: return <SwipeDeck users={usersForSwiping} currentUser={currentUser} onSwipe={handleSwipe} onSuperLike={handleSuperLike} onRecall={handleRecall} canRecall={!!lastSwipedUserId} isLoading={isLoading} onPremiumFeatureClick={handleOpenMonetizationModal} />;
         }
     };
 
-    if (!isAuthenticated) {
-        return <Auth onAuthSuccess={() => setIsAuthenticated(true)} />;
+    if (!session) {
+        return <Auth onAuthSuccess={() => {}} />;
     }
 
     return (
-        <div 
-             className="min-h-screen font-sans bg-cover bg-center bg-fixed" 
-             style={{ backgroundImage: appBackground ? `linear-gradient(rgba(18, 18, 18, 0.7), rgba(18, 18, 18, 0.7)), url(${appBackground})` : 'none', backgroundColor: '#121212' }}
-        >
+        <div className="min-h-screen font-sans bg-cover bg-center bg-fixed" style={{ backgroundImage: appBackground ? `linear-gradient(rgba(18, 18, 18, 0.7), rgba(18, 18, 18, 0.7)), url(${appBackground})` : 'none', backgroundColor: '#121212' }}>
             <Header currentView={currentView} setCurrentView={setCurrentView} activeColorTheme={activeColorTheme} />
             <main className="pt-28 pb-10 px-4 container mx-auto">
                 {renderView()}
             </main>
             {isProfileModalOpen && <ProfileModal user={selectedUserForModal} onClose={handleCloseProfile} onGenerateIcebreakers={handleGenerateIcebreakersFromProfile} gender={currentUser?.gender} />}
             {isBusinessModalOpen && <BusinessDetailModal business={selectedBusinessForModal} allDeals={deals} onClose={handleCloseBusiness} onCreateDate={handleCreateDateFromBusiness} />}
-            {isIcebreakerModalOpen && <IcebreakerModal user={selectedUserForModal} onClose={handleCloseIcebreakers} gender={currentUser?.gender} onSendIcebreaker={(message) => { if(selectedUserForModal) { handleSendMessage(selectedUserForModal.id, message); handleCloseIcebreakers(); setCurrentView(View.Chat); } }} />}
-            {isFeedbackModalOpen && <ProfileFeedbackModal user={currentUser!} onClose={handleCloseProfileFeedback} gender={currentUser?.gender}/>}
+            {isIcebreakerModalOpen && <IcebreakerModal user={selectedUserForModal} onClose={handleCloseIcebreakers} gender={currentUser?.gender} onSendIcebreaker={(message) => { if(selectedUserForModal && currentUser) { handleSendMessage(selectedUserForModal.id, message); handleCloseIcebreakers(); setCurrentView(View.Chat); } }} />}
+            {isFeedbackModalOpen && currentUser && <ProfileFeedbackModal user={currentUser} onClose={handleCloseProfileFeedback} gender={currentUser?.gender}/>}
+            {/* FIX: Corrected typo from handleClosePlanner to handleCloseDatePlanner */}
             {isDatePlannerModalOpen && <DatePlannerModal users={usersForDatePlanning} onClose={handleCloseDatePlanner} gender={currentUser?.gender}/>}
             {isMonetizationModalOpen && <MonetizationModal onClose={handleCloseMonetizationModal} onUpgrade={handleUpgradeToPremium} />}
         </div>
