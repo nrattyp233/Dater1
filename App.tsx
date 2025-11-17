@@ -26,7 +26,7 @@ import LandingPage from './components/LandingPage';
 
 // --- PRE-LAUNCH CONTROL ---
 // Set to `true` to show the landing page, `false` to show the full app.
-const PRE_LAUNCH_MODE = true;
+const PRE_LAUNCH_MODE = false;
 
 
 const MainApp: React.FC = () => {
