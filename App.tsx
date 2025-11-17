@@ -30,7 +30,7 @@ const PRE_LAUNCH_MODE = false;
 
 
 const MainApp: React.FC = () => {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isAuthenticated, setIsAuthenticated] = useState(true);
     const [currentView, setCurrentView] = useState<View>(View.Swipe);
     const [users, setUsers] = useState<User[]>([]);
     const [datePosts, setDatePosts] = useState<DatePost[]>([]);
