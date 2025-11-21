@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { signIn, signUp } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { Gender } from '../types';
 
@@ -24,40 +25,36 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
             showToast('Passwords do not match.', 'error');
             return;
         }
+        if (!name || !age) {
+            showToast('Please fill in all fields.', 'error');
+            return;
+        }
+
         setLoading(true);
-        const { error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                data: {
-                    name,
-                    age: parseInt(age),
-                    gender,
-                },
-            },
-        });
-        setLoading(false);
-        if (error) {
-            showToast(error.message, 'error');
-        } else {
-            showToast('Success! Please check your email to confirm your account.', 'success');
-            setIsLogin(true); // Switch to login view after signup
+        
+        try {
+            await signUp(email, password, name, parseInt(age), gender);
+            setLoading(false);
+            showToast('Success! Account created.', 'success');
+            onAuthSuccess();
+        } catch (error: any) {
+             setLoading(false);
+             showToast(error.message || "Signup failed", 'error');
         }
     };
 
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
-        setLoading(false);
-        if (error) {
-            showToast(error.message, 'error');
-        } else {
-            // onAuthSuccess is now handled by the onAuthStateChange listener in App.tsx
+        
+        try {
+            await signIn(email, password);
+            setLoading(false);
             showToast('Signed in successfully!', 'success');
+            onAuthSuccess();
+        } catch (error: any) {
+            setLoading(false);
+            showToast(error.message || "Login failed. Check your email and password.", 'error');
         }
     };
 
@@ -108,7 +105,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                             <input type="password" id="confirm-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="w-full bg-dark-3 border border-dark-3 rounded-lg p-3 text-white focus:ring-2 focus:ring-brand-pink" placeholder="••••••••" />
                         </div>
                     )}
-                     <button type="submit" disabled={loading} className="w-full py-3 mt-2 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-brand-pink to-brand-purple text-white hover:opacity-90 hover:shadow-glow-pink disabled:opacity-60">
+                     <button type="submit" disabled={loading} className="w-full py-3 mt-2 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-brand-pink to-brand-purple text-white hover:opacity-90 disabled:opacity-60">
                         {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Sign Up')}
                     </button>
                 </form>

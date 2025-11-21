@@ -1,324 +1,425 @@
-import { supabase } from './supabaseClient';
+
 import { User, DatePost, Message, Business, Deal, LocalEvent, Gender } from '../types';
 import { getRealtimeEvents } from './geminiService';
 
-// --- TYPE MAPPERS ---
-// Supabase uses snake_case, our app uses camelCase. These helpers convert between them.
-
-const toUser = (data: any): User => ({
-    id: data.id,
-    name: data.name,
-    age: data.age,
-    bio: data.bio,
-    photos: data.photos || [],
-    interests: data.interests || [],
-    gender: data.gender,
-    isPremium: data.is_premium,
-    isVerified: data.is_verified,
-    preferences: data.preferences || {},
-    earnedBadgeIds: data.earned_badge_ids || [],
-});
-
-const fromUser = (user: Partial<User>) => ({
-    name: user.name,
-    age: user.age,
-    bio: user.bio,
-    photos: user.photos,
-    interests: user.interests,
-    gender: user.gender,
-    is_premium: user.isPremium,
-    is_verified: user.isVerified,
-    preferences: user.preferences,
-    earned_badge_ids: user.earnedBadgeIds,
-});
-
-const toDatePost = (data: any): DatePost => ({
-    id: data.id,
-    title: data.title,
-    description: data.description,
-    location: data.location,
-    dateTime: data.date_time,
-    createdBy: data.created_by,
-    applicants: data.applicants || [],
-    priorityApplicants: data.priority_applicants || [],
-    chosenApplicantId: data.chosen_applicant_id,
-    categories: data.categories || [],
-    businessId: data.business_id,
-    dealId: data.deal_id,
-});
-
-const fromDatePost = (post: Partial<DatePost>) => ({
-    title: post.title,
-    description: post.description,
-    location: post.location,
-    date_time: post.dateTime,
-    created_by: post.createdBy,
-    applicants: post.applicants,
-    priority_applicants: post.priorityApplicants,
-    chosen_applicant_id: post.chosenApplicantId,
-    categories: post.categories,
-    business_id: post.businessId,
-    deal_id: post.dealId,
-});
-
-const toMessage = (data: any): Message => ({
-    id: data.id,
-    senderId: data.sender_id,
-    receiverId: data.receiver_id,
-    text: data.text,
-    timestamp: data.timestamp,
-    read: data.read,
-});
-
-const toBusiness = (data: any): Business => ({
-    id: data.id,
-    name: data.name,
-    description: data.description,
-    address: data.address,
-    category: data.category,
-    photos: data.photos || [],
-    website: data.website,
-    status: data.status,
-});
-
-const fromBusiness = (business: Partial<Business>) => ({
-    name: business.name,
-    description: business.description,
-    address: business.address,
-    category: business.category,
-    photos: business.photos,
-    website: business.website,
-    status: business.status,
-});
-
-const toDeal = (data: any): Deal => ({
-    id: data.id,
-    businessId: data.business_id,
-    title: data.title,
-    description: data.description,
-    commissionRate: data.commission_rate,
-});
-
-
-// --- AUTH & USER ---
-export const getCurrentUserProfile = async (): Promise<User | null> => {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) return null;
-
-    // 1. Attempt to fetch the user profile
-    const { data: profile, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('auth_id', authUser.id)
-        .single();
-
-    // If profile exists, return it
-    if (profile) {
-        return toUser(profile);
-    }
-
-    // 2. If profile doesn't exist (specific error code), create it.
-    // This makes the app resilient to cases where an auth user exists without a public profile (e.g., after DB resets).
-    if (error && error.code === 'PGRST116') {
-        console.warn(`Profile not found for user ${authUser.id}. Creating a new one.`);
-        
-        // Attempt to use metadata from auth, with sensible fallbacks.
-        const gender = (authUser.user_metadata?.gender as Gender) || Gender.Male;
-        const interestedIn = gender === Gender.Male ? [Gender.Female] : [Gender.Male];
-
-        const { data: newProfile, error: insertError } = await supabase
-            .from('users')
-            .insert({
-                auth_id: authUser.id,
-                name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'New User',
-                age: authUser.user_metadata?.age || 18,
-                bio: 'Welcome to my profile! Please update your details in the settings.',
-                photos: ['https://ionicframework.com/docs/img/demos/avatar.svg'],
-                interests: [],
-                gender: gender,
-                preferences: {
-                    interestedIn: interestedIn,
-                    ageRange: { min: 18, max: 99 },
-                    relationshipIntent: 'Exploring',
-                    communicationStyle: 'Texting',
-                    activityLevel: 'Bit of both',
-                }
-            })
-            .select()
-            .single();
-
-        if (insertError) {
-            console.error('Error creating user profile after failed fetch:', insertError);
-            if (insertError.code === '42501') {
-                // This is a specific RLS violation error. Throw it so the UI can handle it.
-                throw new Error("Database security policy is preventing profile creation. Please ask an administrator to add an INSERT policy to the 'users' table.");
-            }
-            return null;
-        }
-        
-        console.log('Successfully created fallback profile for user:', authUser.id);
-        return toUser(newProfile);
-    }
-
-    // 3. If there was some other error fetching, log it and return null
-    if (error) {
-        console.error('Error fetching user profile:', error);
-        return null;
-    }
-
-    // This case should ideally not be reached if there's no data and no error
-    return null;
+// --- PERSISTENCE KEYS ---
+const KEYS = {
+    USERS: 'cad_users',
+    POSTS: 'cad_posts',
+    MESSAGES: 'cad_messages',
+    MATCHES: 'cad_matches',
+    SWIPES: 'cad_swipes',
+    BUSINESSES: 'cad_businesses',
+    CURRENT_USER: 'cad_current_user_id',
+    CREDS: 'cad_auth_creds',
+    BLOCKED: 'cad_blocked_users' // NEW KEY
 };
 
+// --- INITIAL MOCK DATA ---
+const INITIAL_USERS: User[] = [
+    {
+        id: 1,
+        name: "Alex",
+        age: 28,
+        location: "Denver, CO",
+        bio: "Adventure seeker and coffee enthusiast. Always looking for the next great hiking spot.",
+        photos: [
+            "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=800",
+            "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=800"
+        ],
+        interests: ["Hiking", "Coffee", "Photography", "Travel"],
+        gender: Gender.Male,
+        isPremium: false,
+        isVerified: true,
+        preferences: {
+            interestedIn: [Gender.Female],
+            ageRange: { min: 24, max: 35 },
+            relationshipIntent: "Serious",
+            communicationStyle: "Texting",
+            activityLevel: "Active"
+        },
+        earnedBadgeIds: ["starter"]
+    },
+    {
+        id: 2,
+        name: "Sarah",
+        age: 26,
+        location: "Denver, CO",
+        bio: "Art lover and foodie. I know the best taco spots in town!",
+        photos: [
+            "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=800",
+            "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=800"
+        ],
+        interests: ["Art", "Foodie", "Music", "Festivals"],
+        gender: Gender.Female,
+        isPremium: true,
+        isVerified: true,
+        preferences: {
+            interestedIn: [Gender.Male],
+            ageRange: { min: 25, max: 32 },
+            relationshipIntent: "Casual",
+            communicationStyle: "Calls",
+            activityLevel: "Bit of both"
+        },
+        earnedBadgeIds: ["first_date", "adventurous"]
+    },
+    {
+        id: 3,
+        name: "Jessica",
+        age: 24,
+        location: "New York, NY",
+        bio: "City girl loving the fast life. Let's grab a drink on a rooftop.",
+        photos: [
+            "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?q=80&w=800",
+            "https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=800"
+        ],
+        interests: ["Nightlife", "Fashion", "Cocktails", "Running"],
+        gender: Gender.Female,
+        isPremium: false,
+        isVerified: false,
+        preferences: {
+             interestedIn: [Gender.Male],
+             ageRange: { min: 24, max: 35 },
+             relationshipIntent: "Casual",
+             communicationStyle: "Texting",
+             activityLevel: "Active"
+        },
+         earnedBadgeIds: []
+    },
+    {
+        id: 4,
+        name: "Marcus",
+        age: 30,
+        location: "San Francisco, CA",
+        bio: "Tech founder by day, surfer by weekend. Looking for someone to catch waves with.",
+        photos: [
+            "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=800",
+            "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=800"
+        ],
+        interests: ["Tech", "Surfing", "Startups", "Sushi"],
+        gender: Gender.Male,
+        isPremium: true,
+        isVerified: true,
+        preferences: {
+             interestedIn: [Gender.Female],
+             ageRange: { min: 24, max: 30 },
+             relationshipIntent: "Serious",
+             communicationStyle: "In-person",
+             activityLevel: "Active"
+        },
+         earnedBadgeIds: ["prolific_planner"]
+    },
+    {
+        id: 5,
+        name: "Elena",
+        age: 27,
+        location: "Denver, CO",
+        bio: "Yoga instructor and plant mom. Let's connect over tea.",
+        photos: [
+            "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=800",
+            "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?q=80&w=800"
+        ],
+        interests: ["Yoga", "Plants", "Meditation", "Tea"],
+        gender: Gender.Female,
+        isPremium: false,
+        isVerified: true,
+        preferences: {
+             interestedIn: [Gender.Male],
+             ageRange: { min: 26, max: 35 },
+             relationshipIntent: "Serious",
+             communicationStyle: "Calls",
+             activityLevel: "Relaxed"
+        },
+         earnedBadgeIds: []
+    }
+];
+
+const INITIAL_POSTS: DatePost[] = [
+    {
+        id: 101,
+        title: "Weekend Hiking Adventure",
+        description: "Planning to hike the Skyline Trail this Saturday morning. Great views and fresh air guaranteed! Who's up for it?",
+        location: "Blue Ridge Mountains",
+        dateTime: new Date(Date.now() + 86400000 * 2).toISOString(),
+        createdBy: 1,
+        applicants: [2],
+        priorityApplicants: [],
+        chosenApplicantId: null,
+        categories: ["Outdoors & Adventure", "Active & Fitness"],
+    }
+];
+
+const INITIAL_BUSINESSES: Business[] = [
+    {
+        id: 1,
+        name: "The Rusty Spoon",
+        description: "Farm-to-table dining experience with a cozy atmosphere.",
+        address: "123 Main St, Downtown",
+        category: "Food & Drink",
+        photos: ["https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=800"],
+        website: "https://example.com",
+        status: "approved"
+    }
+];
+
+const INITIAL_DEALS: Deal[] = [
+     {
+        id: 1,
+        businessId: 1,
+        title: "Free Appetizer",
+        description: "Get a free appetizer with the purchase of two entrees.",
+        commissionRate: 0.15
+    }
+];
+
+// --- DATA LAYER UTILS ---
+
+const load = <T>(key: string, fallback: T): T => {
+    try {
+        const stored = localStorage.getItem(key);
+        return stored ? JSON.parse(stored) : fallback;
+    } catch (e) {
+        console.error(`Failed to load ${key}`, e);
+        return fallback;
+    }
+};
+
+const save = (key: string, data: any) => {
+    try {
+        localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+        console.error(`Failed to save ${key}`, e);
+    }
+};
+
+// --- STATE MANAGEMENT ---
+let users = load<User[]>(KEYS.USERS, INITIAL_USERS);
+let datePosts = load<DatePost[]>(KEYS.POSTS, INITIAL_POSTS);
+let messages = load<Message[]>(KEYS.MESSAGES, []);
+let matches = load<{ user1: number, user2: number }[]>(KEYS.MATCHES, []);
+let swipes = load<{ swiperId: number, swipedId: number, direction: 'left' | 'right' }[]>(KEYS.SWIPES, []);
+let businesses = load<Business[]>(KEYS.BUSINESSES, INITIAL_BUSINESSES);
+let currentUserId = load<number | null>(KEYS.CURRENT_USER, null);
+let blockedUsers = load<{ blockerId: number, blockedId: number }[]>(KEYS.BLOCKED, []);
+
+// --- AUTH CREDENTIALS STORE ---
+// Format: { [email: string]: { password: string, userId: number } }
+let creds = load<Record<string, {password: string, userId: number}>>(KEYS.CREDS, {
+    'test@test.com': { password: 'password', userId: 1 }, // Default user for testing
+});
+
+const sync = () => {
+    save(KEYS.USERS, users);
+    save(KEYS.POSTS, datePosts);
+    save(KEYS.MESSAGES, messages);
+    save(KEYS.MATCHES, matches);
+    save(KEYS.SWIPES, swipes);
+    save(KEYS.BUSINESSES, businesses);
+    save(KEYS.CURRENT_USER, currentUserId);
+    save(KEYS.CREDS, creds);
+    save(KEYS.BLOCKED, blockedUsers);
+};
+
+// --- HELPER FOR BLOCKING ---
+const isBlocked = (id1: number, id2: number) => {
+    return blockedUsers.some(b => 
+        (b.blockerId === id1 && b.blockedId === id2) || 
+        (b.blockerId === id2 && b.blockedId === id1)
+    );
+};
+
+// --- API METHODS ---
+
+export const signUp = async (email: string, password: string, name: string, age: number, gender: Gender): Promise<User> => {
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    if (creds[email.toLowerCase()]) {
+        throw new Error("User already exists with this email.");
+    }
+
+    const newUser: User = {
+        id: Date.now(),
+        name: name,
+        age: age,
+        location: "Denver, CO", // Default location for new users in simulation
+        bio: "I'm new here! Just joined Create-A-Date.",
+        photos: ["https://ionicframework.com/docs/img/demos/avatar.svg"], // Default avatar
+        interests: [],
+        gender: gender,
+        isPremium: false,
+        isVerified: false,
+        preferences: {
+            interestedIn: [gender === Gender.Male ? Gender.Female : Gender.Male],
+            ageRange: { min: 18, max: 99 },
+            relationshipIntent: 'Exploring',
+            communicationStyle: 'Texting',
+            activityLevel: 'Bit of both',
+        }
+    };
+
+    users.push(newUser);
+    creds[email.toLowerCase()] = { password, userId: newUser.id };
+    currentUserId = newUser.id;
+    sync();
+    return newUser;
+};
+
+export const signIn = async (email: string, password: string): Promise<User> => {
+    await new Promise(resolve => setTimeout(resolve, 600));
+
+    const record = creds[email.toLowerCase()];
+    
+    if (!record) {
+        throw new Error("No account found with this email.");
+    }
+
+    if (record.password !== password) {
+        throw new Error("Incorrect password.");
+    }
+
+    const user = users.find(u => u.id === record.userId);
+    if (!user) {
+        throw new Error("User profile data is missing.");
+    }
+
+    currentUserId = user.id;
+    sync();
+    return user;
+};
+
+export const getCurrentUserProfile = async (): Promise<User | null> => {
+    if (!currentUserId) return null;
+    return users.find(u => u.id === currentUserId) || null;
+};
 
 export const getUsers = async (): Promise<User[]> => {
-    const { data, error } = await supabase.from('users').select('*');
-    if (error) throw error;
-    return data.map(toUser);
+    // Filter out blocked users
+    if (!currentUserId) return users;
+    return users.filter(u => !isBlocked(currentUserId!, u.id));
 };
 
 export const updateUser = async (updatedUser: User): Promise<User> => {
-    const { data, error } = await supabase
-        .from('users')
-        .update(fromUser(updatedUser))
-        .eq('id', updatedUser.id)
-        .select()
-        .single();
-    if (error) throw error;
-    return toUser(data);
+    users = users.map(u => u.id === updatedUser.id ? updatedUser : u);
+    sync();
+    return updatedUser;
 };
 
-// --- DATES ---
 export const getDatePosts = async (): Promise<DatePost[]> => {
-    const { data, error } = await supabase.from('date_posts').select('*').order('date_time', { ascending: false });
-    if (error) throw error;
-    return data.map(toDatePost);
+    return datePosts;
 };
 
 export const createDate = async (newDateData: Omit<DatePost, 'id'>): Promise<DatePost> => {
-    const { data, error } = await supabase
-        .from('date_posts')
-        .insert(fromDatePost(newDateData))
-        .select()
-        .single();
-    if (error) throw error;
-    return toDatePost(data);
+    const newPost: DatePost = {
+        ...newDateData,
+        id: Date.now(),
+    };
+    datePosts.unshift(newPost);
+    sync();
+    return newPost;
 };
 
 export const updateDatePost = async (updatedPost: DatePost): Promise<DatePost> => {
-    const { data, error } = await supabase
-        .from('date_posts')
-        .update(fromDatePost(updatedPost))
-        .eq('id', updatedPost.id)
-        .select()
-        .single();
-    if (error) throw error;
-    return toDatePost(data);
+    datePosts = datePosts.map(p => p.id === updatedPost.id ? updatedPost : p);
+    sync();
+    return updatedPost;
 };
 
 export const expressPriorityInterest = async (userId: number, dateId: number): Promise<DatePost> => {
-    const { data, error } = await supabase.rpc('add_priority_applicant', {
-        p_date_id: dateId,
-        p_user_id: userId
-    });
-    if (error) throw error;
-    // RPC returns the updated row
-    return toDatePost(data);
+    const post = datePosts.find(p => p.id === dateId);
+    if (post) {
+        if (!post.applicants.includes(userId)) post.applicants.push(userId);
+        if (!post.priorityApplicants?.includes(userId)) {
+            post.priorityApplicants = [...(post.priorityApplicants || []), userId];
+        }
+        sync();
+        return post;
+    }
+    throw new Error("Date not found");
 };
 
 export const deleteDatePost = async (dateId: number): Promise<void> => {
-    const { error } = await supabase.from('date_posts').delete().eq('id', dateId);
-    if (error) throw error;
+    datePosts = datePosts.filter(p => p.id !== dateId);
+    sync();
 };
 
-// --- SWIPING & MATCHING ---
-export const getMatches = async (currentUserId: number): Promise<number[]> => {
-    const { data, error } = await supabase
-        .from('matches')
-        .select('user_id_1, user_id_2')
-        .or(`user_id_1.eq.${currentUserId},user_id_2.eq.${currentUserId}`);
-    if (error) throw error;
-    return data.map(match => match.user_id_1 === currentUserId ? match.user_id_2 : match.user_id_1);
+export const getMatches = async (userId: number): Promise<number[]> => {
+    return matches
+        .filter(m => (m.user1 === userId || m.user2 === userId) && !isBlocked(userId, m.user1 === userId ? m.user2 : m.user1))
+        .map(m => m.user1 === userId ? m.user2 : m.user1);
 };
 
-export const getSwipedLeftIds = async (currentUserId: number): Promise<number[]> => {
-    const { data, error } = await supabase
-        .from('swipes')
-        .select('swiped_id')
-        .eq('swiper_id', currentUserId)
-        .eq('direction', 'left');
-    if (error) throw error;
-    return data.map(swipe => swipe.swiped_id);
+export const getSwipedLeftIds = async (userId: number): Promise<number[]> => {
+    return swipes
+        .filter(s => s.swiperId === userId && s.direction === 'left')
+        .map(s => s.swipedId);
 };
 
 export const recordSwipe = async (userId: number, swipedUserId: number, direction: 'left' | 'right'): Promise<{ isMatch: boolean }> => {
-    // Insert the swipe
-    const { error: swipeError } = await supabase.from('swipes').insert({
-        swiper_id: userId,
-        swiped_id: swipedUserId,
-        direction,
-    });
-    if (swipeError) throw swipeError;
-
+    swipes.push({ swiperId: userId, swipedId: swipedUserId, direction });
+    
+    let isMatch = false;
     if (direction === 'right') {
-        // Check if the other user has swiped right on us
-        const { data, error: matchCheckError } = await supabase
-            .from('swipes')
-            .select('swiper_id')
-            .eq('swiper_id', swipedUserId)
-            .eq('swiped_id', userId)
-            .eq('direction', 'right')
-            .limit(1);
+        const otherSwiped = swipes.find(s => s.swiperId === swipedUserId && s.swipedId === userId && s.direction === 'right');
         
-        if (matchCheckError) throw matchCheckError;
-
-        if (data && data.length > 0) {
-            // It's a match!
-            const user1 = Math.min(userId, swipedUserId);
-            const user2 = Math.max(userId, swipedUserId);
-            const { error: matchError } = await supabase.from('matches').insert({
-                user_id_1: user1,
-                user_id_2: user2,
-            });
-            if (matchError) {
-                // Ignore unique constraint violation if match already exists
-                if (matchError.code !== '23505') throw matchError;
-            }
-            return { isMatch: true };
+        if (otherSwiped) {
+            matches.push({ user1: userId, user2: swipedUserId });
+            isMatch = true;
         }
     }
-    return { isMatch: false };
+    sync();
+    return { isMatch };
 };
 
-export const recordSuperLike = (userId: number, swipedUserId: number) => recordSwipe(userId, swipedUserId, 'right');
+export const recordSuperLike = async (userId: number, swipedUserId: number): Promise<{ isMatch: boolean }> => {
+    return recordSwipe(userId, swipedUserId, 'right');
+};
 
 export const recallSwipe = async (userId: number, lastSwipedUserId: number): Promise<void> => {
-    const { error } = await supabase
-        .from('swipes')
-        .delete()
-        .eq('swiper_id', userId)
-        .eq('swiped_id', lastSwipedUserId);
-    if (error) throw error;
+    swipes = swipes.filter(s => !(s.swiperId === userId && s.swipedId === lastSwipedUserId));
+    matches = matches.filter(m => !((m.user1 === userId && m.user2 === lastSwipedUserId) || (m.user1 === lastSwipedUserId && m.user2 === userId)));
+    sync();
 };
 
-// --- MESSAGING ---
 export const getMessages = async (): Promise<Message[]> => {
-    const { data, error } = await supabase.from('messages').select('*');
-    if (error) throw error;
-    return data.map(toMessage);
+    // Filter messages where either sender or receiver is blocked
+    if (!currentUserId) return [];
+    return messages.filter(m => !isBlocked(currentUserId!, m.senderId) && !isBlocked(currentUserId!, m.receiverId));
 };
 
 export const sendMessage = async (senderId: number, receiverId: number, text: string): Promise<Message> => {
-    const { data, error } = await supabase
-        .from('messages')
-        .insert({ sender_id: senderId, receiver_id: receiverId, text })
-        .select()
-        .single();
-    if (error) throw error;
-    return toMessage(data);
+    const newMessage: Message = {
+        id: Date.now(),
+        senderId,
+        receiverId,
+        text,
+        timestamp: new Date().toISOString(),
+        read: false
+    };
+    messages.push(newMessage);
+    sync();
+    return newMessage;
 };
 
-// --- BUSINESS & EXTERNAL ---
+// --- REPORTING & BLOCKING API ---
+
+export const blockUser = async (blockerId: number, blockedId: number): Promise<void> => {
+    if (isBlocked(blockerId, blockedId)) return;
+    blockedUsers.push({ blockerId, blockedId });
+    
+    // Clean up matches if they exist
+    matches = matches.filter(m => 
+        !((m.user1 === blockerId && m.user2 === blockedId) || (m.user1 === blockedId && m.user2 === blockerId))
+    );
+    
+    sync();
+};
+
+export const reportUser = async (reporterId: number, reportedId: number, reason: string): Promise<void> => {
+    console.log(`[REPORT] User ${reporterId} reported ${reportedId} for: ${reason}`);
+    // In a real app, this would send data to a backend moderation queue.
+    // For this simulation, we just log it.
+};
+
 export const getLocalEvents = async (location?: string): Promise<LocalEvent[]> => {
     if (!location || location.trim() === '') return [];
     try {
@@ -330,41 +431,30 @@ export const getLocalEvents = async (location?: string): Promise<LocalEvent[]> =
 };
 
 export const getBusinesses = async (): Promise<Business[]> => {
-    const { data, error } = await supabase.from('businesses').select('*').eq('status', 'approved');
-    if (error) throw error;
-    return data.map(toBusiness);
+    return businesses;
 };
 
 export const getDealsForBusiness = async (businessId: number): Promise<Deal[]> => {
-    // For now, get all deals as there aren't many
-    const { data, error } = await supabase.from('deals').select('*');
-    if (error) throw error;
-    return data.map(toDeal);
+    return INITIAL_DEALS; 
 };
 
 export const submitBusinessApplication = async (businessData: Omit<Business, 'id' | 'status'>): Promise<Business> => {
-    const { data, error } = await supabase
-        .from('businesses')
-        .insert(fromBusiness({ ...businessData, status: 'pending' }))
-        .select()
-        .single();
-    if (error) throw error;
-    return toBusiness(data);
+    const newBusiness = { ...businessData, id: Date.now(), status: 'pending' as const };
+    businesses.push(newBusiness);
+    sync();
+    return newBusiness;
 };
 
-// --- LEADERBOARD ---
 export const getLeaderboard = async (): Promise<(User & { score: number })[]> => {
-    // This would ideally be a database function (RPC) for performance
-    const { data: usersData, error: usersError } = await supabase.from('users').select('*');
-    const { data: postsData, error: postsError } = await supabase.from('date_posts').select('created_by, applicants');
-    if (usersError || postsError) throw usersError || postsError;
-
-    const scores = usersData.map(u => {
-        const postsCreated = postsData.filter(p => p.created_by === u.id);
+    const scores = users.map(u => {
+        const postsCreated = datePosts.filter(p => p.createdBy === u.id);
         const applicantsReceived = postsCreated.reduce((sum, p) => sum + (p.applicants?.length || 0), 0);
         const score = (postsCreated.length * 100) + (applicantsReceived * 10);
-        return { ...toUser(u), score };
+        return { ...u, score };
     });
-
     return scores.sort((a, b) => b.score - a.score).slice(0, 10);
+};
+
+export const simulateNetworkActivity = (currentUserId: number, notify: (msg: string) => void) => {
+    // Minimal simulation for alive feel
 };

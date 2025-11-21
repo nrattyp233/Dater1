@@ -2,11 +2,10 @@ import { GoogleGenAI, Type, Part } from "@google/genai";
 import { User, DateIdea, LocationSuggestion, Message, DateCategory, LocalEvent } from '../types';
 
 // Ensure you have your API_KEY in the environment variables
-// FIX: Cast `import.meta` to `any` to resolve TypeScript error about missing `env` property.
-const API_KEY = (import.meta as any).env.VITE_API_KEY;
+const API_KEY = process.env.API_KEY;
 
 if (!API_KEY) {
-  console.warn("VITE_API_KEY not found in environment variables. Gemini features will be disabled.");
+  console.warn("API_KEY not found in environment variables. Gemini features will be disabled.");
 }
 
 const ai = new GoogleGenAI({ apiKey: API_KEY! });
@@ -105,65 +104,72 @@ export const getRealtimeEvents = async (location: string): Promise<LocalEvent[]>
     if (!API_KEY) return MOCK_EVENTS;
 
     const availableCategories: DateCategory[] = ['Food & Drink', 'Outdoors & Adventure', 'Arts & Culture', 'Nightlife', 'Relaxing & Casual', 'Active & Fitness'];
-    // FIX: Updated prompt to be highly specific about finding current, upcoming events to prevent outdated results.
-    const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    const prompt = `It is currently ${currentDate}. Find 15 actual, verifiable, and **currently upcoming** local events in "${location}" suitable for a date. The events **must** be happening in the near future (e.g., this week, next weekend, within the next month). **Do not include events from the past.** Include events like concerts, festivals, workshops, or unique community gatherings. For each event, provide a catchy title, the specific venue or location, a short exciting description of 20-30 words, a plausible and relevant image URL from a service like Unsplash, the event date as a friendly string (e.g., 'This Friday', 'October 26th'), a valid source URL linking to the event page for more details, and one of the following categories: ${availableCategories.join(', ')}.`;
+    
+    // EDEN UPDATE: Utilizing Google Search Grounding for ACTUAL live events.
+    // We cannot use 'responseSchema' with 'tools' efficiently in all cases, so we instruct the model to return raw text we can parse.
+    const prompt = `Perform a Google Search to find 10 REAL, upcoming events in "${location}" happening within the next 7-14 days. 
+    Look for concerts, festivals, markets, comedy shows, or workshops.
+    
+    Return the results as a strictly formatted JSON array of objects inside a markdown code block (\`\`\`json [ ... ] \`\`\`).
+    
+    Each object in the array MUST have these exact properties:
+    - "title": (string) The official name of the event.
+    - "location": (string) The venue name.
+    - "description": (string) A short, exciting summary (max 20 words).
+    - "category": (string) Choose the best fit from: ${availableCategories.join(', ')}.
+    - "date": (string) The date and time (e.g., "Fri, Oct 20 @ 7PM").
+    - "sourceUrl": (string) A real URL to the event page or ticket seller found in the search.
+    
+    For the "imageUrl" property, since you cannot browse images, just return null.
+    `;
 
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        events: {
-                            type: Type.ARRAY,
-                            description: "An array of 15 event objects.",
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    title: { type: Type.STRING, description: "A catchy title for the event." },
-                                    location: { type: Type.STRING, description: "The venue or general location." },
-                                    description: { type: Type.STRING, description: "A short exciting description of 20-30 words." },
-                                    category: { type: Type.STRING, description: `One of: ${availableCategories.join(', ')}` },
-                                    imageUrl: { type: Type.STRING, description: "A plausible image URL from a service like Unsplash." },
-                                    date: { type: Type.STRING, description: "A friendly date string, like 'This Friday' or 'Next Weekend'." },
-                                    sourceUrl: { type: Type.STRING, description: "A valid URL to the event's source page." }
-                                },
-                                required: ["title", "location", "description", "category", "imageUrl", "date", "sourceUrl"]
-                            }
-                        }
-                    },
-                    required: ["events"]
-                }
+                tools: [{ googleSearch: {} }], // Activate Search Grounding
+                temperature: 0.9, // Higher creativity to synthesize search results well
             }
         });
 
-        const result = JSON.parse(response.text.trim());
-
-        if (!result.events) {
+        // Parse the response manually since we can't use responseSchema with tools easily
+        const text = response.text;
+        const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/```\n([\s\S]*?)\n```/) || text.match(/\[[\s\S]*\]/);
+        
+        if (!jsonMatch) {
+            console.warn("Gemini failed to return JSON structure with search results.");
             return MOCK_EVENTS;
         }
 
-        return result.events.map((event: any, index: number) => ({
+        const jsonString = jsonMatch[1] || jsonMatch[0];
+        const result = JSON.parse(jsonString);
+        
+        if (!Array.isArray(result)) {
+             return MOCK_EVENTS;
+        }
+
+        return result.map((event: any, index: number) => ({
             id: Date.now() + index,
-            title: event.title,
+            title: event.title || "Local Event",
             category: availableCategories.includes(event.category) ? event.category : 'Relaxing & Casual',
-            description: event.description,
-            location: event.location,
-            date: event.date,
-            imageUrl: event.imageUrl,
-            sourceUrl: event.sourceUrl,
+            description: event.description || "An exciting local event.",
+            location: event.location || location,
+            date: event.date || "Upcoming",
+            // Use a fallback image based on category since search doesn't return image URLs reliably in this mode
+            imageUrl: CATEGORY_IMAGE_FALLBACKS[event.category as DateCategory] || PLACEHOLDER_IMAGE_URL,
+            sourceUrl: event.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(event.title + ' ' + location)}`,
             price: "Varies"
         }));
         
     } catch (error) {
-        console.error("Error fetching real-time events:", error, "Raw response:", (error as any).response?.text);
+        console.error("Error fetching real-time events with grounding:", error);
         return MOCK_EVENTS;
     }
 };
+
+// Importing fallbacks for the function above
+import { CATEGORY_IMAGE_FALLBACKS, PLACEHOLDER_IMAGE_URL } from '../constants';
 
 
 export const enhanceDateDescription = async (idea: string): Promise<string> => {

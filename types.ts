@@ -1,3 +1,4 @@
+
 // FIX: Import React to use React.FC
 import React from 'react';
 
@@ -17,6 +18,7 @@ export interface User {
   id: number;
   name: string;
   age: number;
+  location: string; // EDEN UPDATE: Added location field for priority sorting
   bio: string;
   photos: string[];
   interests: string[];
@@ -81,6 +83,7 @@ export enum View {
   BusinessSignup,
   Leaderboard,
   AllEvents,
+  LocalPeople, // Added LocalPeople view
 }
 
 export interface LocalEvent {

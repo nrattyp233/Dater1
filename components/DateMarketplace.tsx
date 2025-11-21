@@ -1,3 +1,4 @@
+
 // FIX: Imported useEffect to resolve 'Cannot find name 'useEffect'' error.
 import React, { useState, useMemo, useEffect } from 'react';
 import { DatePost, User, Gender, DateCategory, LocalEvent, Business, Deal } from '../types';
@@ -158,7 +159,8 @@ const LocalEventCard: React.FC<LocalEventCardProps> = ({ event, onCreate, onView
                         src={event.imageUrl?.trim() || CATEGORY_IMAGE_FALLBACKS[event.category] || PLACEHOLDER_IMAGE_URL} 
                         onError={handleImageError}
                         alt={event.title} 
-                        className="w-full h-full object-cover absolute inset-0" 
+                        className="w-full h-40 object-cover absolute inset-0" 
+                        style={{ height: '100%', minHeight: '200px' }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent" />
                     <div className="relative p-4 flex flex-col justify-end h-full text-white min-h-[200px]">
@@ -365,7 +367,7 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
                     </div>
                 ) : (
                     localEvents.length > 0 ? (
-                        <div className="flex gap-4 overflow-x-auto scrollbar-hide -m-2 p-2">
+                        <div className="flex gap-4 overflow-x-auto scrollbar-hide py-4 -mx-4 px-4">
                             {localEvents.map(event => (
                                 <LocalEventCard key={event.id} event={event} onCreate={onCreateDateFromEvent} onViewDetails={setSelectedEvent} />
                             ))}
@@ -388,7 +390,7 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
                     <BuildingIcon className="w-6 h-6 text-cyan-400" />
                     <h3 className="text-2xl font-bold text-white">Partner Venues {effectiveSearchLocation && `in ${effectiveSearchLocation}`}</h3>
                 </div>
-                <div className="flex gap-4 overflow-x-auto scrollbar-hide -m-2 p-2">
+                <div className="flex gap-4 overflow-x-auto scrollbar-hide py-4 -mx-4 px-4">
                    {businesses.map(business => (
                        <BusinessCard key={business.id} business={business} deals={deals} onView={onViewBusiness} />
                    ))}

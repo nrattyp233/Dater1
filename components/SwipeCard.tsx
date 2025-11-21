@@ -1,7 +1,12 @@
-import React, { useState, useRef } from 'react';
+
+import React, { useState, useRef, useImperativeHandle, forwardRef } from 'react';
 import { User } from '../types';
 import { SparklesIcon, CheckCircleIcon } from '../constants';
 import { SkeletonLoader } from './SkeletonLoader';
+
+export interface SwipeCardRef {
+  triggerSwipe: (direction: 'left' | 'right') => Promise<void>;
+}
 
 interface SwipeCardProps {
   user: User;
@@ -10,41 +15,79 @@ interface SwipeCardProps {
   isCompatibilityLoading: boolean;
   profileVibe: string | null;
   isVibeLoading: boolean;
+  style?: React.CSSProperties;
+  className?: string;
 }
 
-const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, compatibility, isCompatibilityLoading, profileVibe, isVibeLoading }) => {
-  const [dragState, setDragState] = useState({ x: 0, isDragging: false, startX: 0 });
+const SwipeCard = forwardRef<SwipeCardRef, SwipeCardProps>(({ 
+  user, 
+  onSwipe, 
+  compatibility, 
+  isCompatibilityLoading, 
+  profileVibe, 
+  isVibeLoading,
+  style,
+  className
+}, ref) => {
+  const [dragState, setDragState] = useState({ x: 0, y: 0, isDragging: false, startX: 0, startY: 0 });
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const [exitState, setExitState] = useState<{ x: number, y: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const elementRef = useRef<HTMLDivElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    triggerSwipe: async (direction: 'left' | 'right') => {
+      const exitX = direction === 'right' ? window.innerWidth : -window.innerWidth;
+      setExitState({ x: exitX, y: 0 });
+      
+      // Wait for animation to complete before calling onSwipe
+      await new Promise(resolve => setTimeout(resolve, 300));
+      onSwipe(direction);
+    }
+  }));
 
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
-    const startX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    setDragState(prev => ({ ...prev, isDragging: true, startX }));
+    // Don't drag if we are already exiting
+    if (exitState) return;
+
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    setDragState(prev => ({ ...prev, isDragging: true, startX: clientX, startY: clientY }));
   };
 
   const handleDragMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!dragState.isDragging) return;
-    const currentX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const deltaX = currentX - dragState.startX;
-    setDragState(prev => ({ ...prev, x: deltaX }));
+    if (!dragState.isDragging || exitState) return;
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
+    const deltaX = clientX - dragState.startX;
+    const deltaY = clientY - dragState.startY;
+    
+    setDragState(prev => ({ ...prev, x: deltaX, y: deltaY }));
   };
 
   const handleDragEnd = () => {
-    if (!dragState.isDragging) return;
+    if (!dragState.isDragging || exitState) return;
 
-    if (dragState.x > 100) {
-      onSwipe('right');
-    } else if (dragState.x < -100) {
-      onSwipe('left');
+    const threshold = 100;
+
+    if (dragState.x > threshold) {
+      // Swipe Right
+      const exitX = window.innerWidth;
+      const exitY = dragState.y + (dragState.y / dragState.x) * (exitX - dragState.x); // Continue trajectory
+      setExitState({ x: exitX, y: exitY });
+      setTimeout(() => onSwipe('right'), 300);
+    } else if (dragState.x < -threshold) {
+      // Swipe Left
+      const exitX = -window.innerWidth;
+      const exitY = dragState.y + (dragState.y / dragState.x) * (exitX - dragState.x); // Continue trajectory
+      setExitState({ x: exitX, y: exitY });
+      setTimeout(() => onSwipe('left'), 300);
+    } else {
+      // Reset
+      setDragState({ x: 0, y: 0, isDragging: false, startX: 0, startY: 0 });
     }
-    
-    setTimeout(() => {
-       setDragState({ x: 0, isDragging: false, startX: 0 });
-       setCurrentPhotoIndex(0);
-       if (scrollRef.current) {
-        scrollRef.current.scrollTo({ left: 0, behavior: 'auto' });
-       }
-    }, 300);
   };
 
   const handleScroll = () => {
@@ -57,20 +100,26 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, compatibility, isC
     }
   };
 
-  const rotation = dragState.x / 10;
-  
+  // Calculate transforms
+  const x = exitState ? exitState.x : dragState.x;
+  const y = exitState ? exitState.y : dragState.y;
+  const rotation = x / 15;
+  const transition = dragState.isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+
   const cardStyle = {
-    transform: `translateX(${dragState.x}px) rotate(${rotation}deg)`,
-    transition: dragState.isDragging ? 'none' : 'transform 0.3s ease-out',
+    transform: `translate3d(${x}px, ${y}px, 0) rotate(${rotation}deg)`,
+    transition: transition,
+    zIndex: exitState ? 100 : undefined, // Keep exiting card on top
+    ...style
   };
   
-  const likeOpacity = dragState.x > 20 ? Math.min(1, dragState.x / 100) : 0;
-  const nopeOpacity = dragState.x < -20 ? Math.min(1, Math.abs(dragState.x) / 100) : 0;
-
+  const likeOpacity = x > 20 ? Math.min(1, x / 100) : 0;
+  const nopeOpacity = x < -20 ? Math.min(1, Math.abs(x) / 100) : 0;
 
   return (
     <div
-      className="absolute w-full h-full cursor-grab active:cursor-grabbing"
+      ref={elementRef}
+      className={`absolute w-full h-full cursor-grab active:cursor-grabbing ${className || ''}`}
       style={cardStyle}
       onMouseDown={handleDragStart}
       onTouchStart={handleDragStart}
@@ -80,7 +129,7 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, compatibility, isC
       onMouseLeave={handleDragEnd}
       onTouchEnd={handleDragEnd}
     >
-      <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-lg bg-dark-2">
+      <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-xl bg-dark-2 border border-dark-3/50">
         <div
             ref={scrollRef}
             onScroll={handleScroll}
@@ -94,8 +143,7 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, compatibility, isC
                     key={index}
                     src={photo}
                     alt={`${user.name} profile photo ${index + 1}`}
-                    className="w-full h-full object-cover flex-shrink-0 snap-center"
-                    draggable="false"
+                    className="w-full h-full object-cover flex-shrink-0 snap-center pointer-events-none"
                 />
             ))}
         </div>
@@ -110,9 +158,9 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, compatibility, isC
             </div>
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 p-6 text-white w-full pointer-events-none">
-          <h2 className="text-3xl font-bold flex items-center gap-2">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/20 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 p-6 text-white w-full pointer-events-none select-none">
+          <h2 className="text-3xl font-bold flex items-center gap-2 drop-shadow-md">
             <span>{user.name}, {user.age}</span>
             {user.isVerified && <CheckCircleIcon className="w-7 h-7 text-blue-400" />}
           </h2>
@@ -129,10 +177,10 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, compatibility, isC
             </div>
           )}
           
-          <p className="mt-2 text-light-2">{user.bio}</p>
+          <p className="mt-2 text-light-2 drop-shadow-sm">{user.bio}</p>
           <div className="mt-4 flex flex-wrap gap-2">
             {user.interests.map(interest => (
-              <span key={interest} className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">{interest}</span>
+              <span key={interest} className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full backdrop-blur-sm">{interest}</span>
             ))}
           </div>
 
@@ -157,15 +205,17 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, compatibility, isC
             </div>
           )}
         </div>
-        <div style={{opacity: likeOpacity}} className="absolute top-12 right-12 text-green-400 border-4 border-green-400 rounded-full p-4 transform -rotate-20 pointer-events-none">
-            <h2 className="text-4xl font-bold">LIKE</h2>
+        <div style={{opacity: likeOpacity}} className="absolute top-12 right-12 text-green-400 border-4 border-green-400 rounded-full p-4 transform -rotate-20 pointer-events-none bg-black/20 backdrop-blur-sm">
+            <h2 className="text-4xl font-bold tracking-wider">LIKE</h2>
         </div>
-        <div style={{opacity: nopeOpacity}} className="absolute top-12 left-12 text-red-500 border-4 border-red-500 rounded-full p-4 transform rotate-20 pointer-events-none">
-            <h2 className="text-4xl font-bold">NOPE</h2>
+        <div style={{opacity: nopeOpacity}} className="absolute top-12 left-12 text-red-500 border-4 border-red-500 rounded-full p-4 transform rotate-20 pointer-events-none bg-black/20 backdrop-blur-sm">
+            <h2 className="text-4xl font-bold tracking-wider">NOPE</h2>
         </div>
       </div>
     </div>
   );
-};
+});
+
+SwipeCard.displayName = 'SwipeCard';
 
 export default SwipeCard;

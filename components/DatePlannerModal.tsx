@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { User, Gender, DateIdea } from '../types';
 import { generateDateIdeas } from '../services/geminiService';
-import { SparklesIcon, XIcon } from '../constants';
+import { SparklesIcon, XIcon, ChatIcon, MapPinIcon } from '../constants';
 import { useToast } from '../contexts/ToastContext';
 import { SkeletonLoader } from './SkeletonLoader';
 
@@ -9,9 +10,10 @@ interface DatePlannerModalProps {
     users: [User, User] | null;
     onClose: () => void;
     gender?: Gender;
+    onSendInvite?: (idea: DateIdea) => void; // New prop for sending invites
 }
 
-const DatePlannerModal: React.FC<DatePlannerModalProps> = ({ users, onClose, gender }) => {
+const DatePlannerModal: React.FC<DatePlannerModalProps> = ({ users, onClose, gender, onSendInvite }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [ideas, setIdeas] = useState<DateIdea[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -52,6 +54,12 @@ const DatePlannerModal: React.FC<DatePlannerModalProps> = ({ users, onClose, gen
             <SkeletonLoader className="h-4 w-5/6 mt-2 rounded" />
         </div>
     );
+    
+    const handleSendInvite = (idea: DateIdea) => {
+        if (onSendInvite) {
+            onSendInvite(idea);
+        }
+    };
 
     return (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="planner-title">
@@ -83,7 +91,7 @@ const DatePlannerModal: React.FC<DatePlannerModalProps> = ({ users, onClose, gen
                 {!isLoading && !error && (
                     <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                         {ideas.map((idea, index) => (
-                           <div key={index} className="bg-dark-3 p-4 rounded-lg animate-fade-in group transition-all duration-300 hover:bg-dark-3/80">
+                           <div key={index} className="bg-dark-3 p-4 rounded-lg animate-fade-in group transition-all duration-300 hover:bg-dark-3/80 flex flex-col gap-3">
                                <div className="flex items-start gap-4">
                                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${isMaleTheme ? 'bg-green-700' : 'bg-brand-pink'}`}>
                                        {index + 1}
@@ -94,6 +102,15 @@ const DatePlannerModal: React.FC<DatePlannerModalProps> = ({ users, onClose, gen
                                        <p className="text-gray-300">{idea.description}</p>
                                    </div>
                                </div>
+                               {onSendInvite && (
+                                   <button 
+                                        onClick={() => handleSendInvite(idea)}
+                                        className={`w-full py-2 rounded-md font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${isMaleTheme ? 'bg-green-800/50 text-green-200 hover:bg-green-700' : 'bg-brand-pink/20 text-brand-light hover:bg-brand-pink/30'}`}
+                                   >
+                                       <ChatIcon className="w-4 h-4" />
+                                       Send Date Invitation
+                                   </button>
+                               )}
                            </div>
                         ))}
                     </div>

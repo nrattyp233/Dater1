@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { View } from '../types';
-import { HeartIcon, UserIcon, CalendarIcon, PlusIcon, CogIcon, ChatIcon, BuildingIcon, TrophyIcon } from '../constants';
+import { HeartIcon, UserIcon, CalendarIcon, PlusIcon, CogIcon, ChatIcon, BuildingIcon, TrophyIcon, MapPinIcon } from '../constants';
 import type { ColorTheme } from '../constants';
 
 interface HeaderProps {
@@ -48,9 +49,12 @@ const Header: React.FC<HeaderProps> = ({ currentView, setCurrentView, activeColo
             Create-A-Date
           </h1>
         </div>
-        <nav className="flex items-center space-x-1 bg-dark-3 p-1 rounded-full">
+        <nav className="flex items-center space-x-1 bg-dark-3 p-1 rounded-full overflow-x-auto scrollbar-hide max-w-[60vw] md:max-w-none">
           <NavButton isActive={currentView === View.Swipe} onClick={() => setCurrentView(View.Swipe)} ariaLabel="Swipe profiles" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
             <HeartIcon className="w-6 h-6" />
+          </NavButton>
+          <NavButton isActive={currentView === View.LocalPeople} onClick={() => setCurrentView(View.LocalPeople)} ariaLabel="People Nearby" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
+            <MapPinIcon className="w-6 h-6" />
           </NavButton>
           <NavButton isActive={currentView === View.Dates} onClick={() => setCurrentView(View.Dates)} ariaLabel="Browse dates" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
             <CalendarIcon className="w-6 h-6" />
