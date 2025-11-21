@@ -18,6 +18,7 @@ if (!isConfigured) {
 export const supabase = isConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : {
+      // MOCK CLIENT FOR FALLBACK
       auth: {
         getSession: async () => ({ data: { session: null }, error: null }),
         onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
@@ -27,7 +28,18 @@ export const supabase = isConfigured
         getUser: async () => ({ data: { user: null }, error: null }),
       },
       from: () => ({
-        select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }), limit: () => ({ data: [], error: null }) }), or: () => ({ data: [], error: null }) }),
+        select: () => ({ 
+            eq: () => ({ 
+                single: () => ({ data: null, error: null }), 
+                limit: () => ({ data: [], error: null }),
+                order: () => ({ data: [], error: null }) 
+            }), 
+            or: () => ({ 
+                order: () => ({ data: [], error: null }) 
+            }),
+            order: () => ({ data: [], error: null }),
+            insert: () => ({ select: () => ({ single: () => ({ data: null, error: null }) }) })
+        }),
         insert: () => ({ select: () => ({ single: () => ({ data: null, error: null }) }) }),
         update: () => ({ eq: () => ({ select: () => ({ single: () => ({ data: null, error: null }) }) }) }),
         delete: () => ({ eq: () => ({ error: null }) }),

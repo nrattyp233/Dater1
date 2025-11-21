@@ -1,14 +1,17 @@
 import { GoogleGenAI, Type, Part } from "@google/genai";
 import { User, DateIdea, LocationSuggestion, Message, DateCategory, LocalEvent } from '../types';
+// FIX: Import fallbacks to resolve potential circular dependency or missing reference issues
+import { CATEGORY_IMAGE_FALLBACKS, PLACEHOLDER_IMAGE_URL } from '../constants';
 
-// Ensure you have your API_KEY in the environment variables
-const API_KEY = process.env.API_KEY;
+// EDEN UPDATE: VERCEL COMPATIBILITY MODE
+// In Vite/Vercel, env vars must start with VITE_ and be accessed via import.meta.env
+const API_KEY = (import.meta as any).env?.VITE_API_KEY;
 
 if (!API_KEY) {
-  console.warn("API_KEY not found in environment variables. Gemini features will be disabled.");
+  console.warn("VITE_API_KEY not found in environment variables. Gemini features will be disabled.");
 }
 
-const ai = new GoogleGenAI({ apiKey: API_KEY! });
+const ai = new GoogleGenAI({ apiKey: API_KEY || "" });
 
 // --- MOCK FALLBACK DATA ---
 const MOCK_EVENTS: LocalEvent[] = [
@@ -106,7 +109,6 @@ export const getRealtimeEvents = async (location: string): Promise<LocalEvent[]>
     const availableCategories: DateCategory[] = ['Food & Drink', 'Outdoors & Adventure', 'Arts & Culture', 'Nightlife', 'Relaxing & Casual', 'Active & Fitness'];
     
     // EDEN UPDATE: Utilizing Google Search Grounding for ACTUAL live events.
-    // We cannot use 'responseSchema' with 'tools' efficiently in all cases, so we instruct the model to return raw text we can parse.
     const prompt = `Perform a Google Search to find 10 REAL, upcoming events in "${location}" happening within the next 7-14 days. 
     Look for concerts, festivals, markets, comedy shows, or workshops.
     
@@ -167,10 +169,6 @@ export const getRealtimeEvents = async (location: string): Promise<LocalEvent[]>
         return MOCK_EVENTS;
     }
 };
-
-// Importing fallbacks for the function above
-import { CATEGORY_IMAGE_FALLBACKS, PLACEHOLDER_IMAGE_URL } from '../constants';
-
 
 export const enhanceDateDescription = async (idea: string): Promise<string> => {
   if (!API_KEY) {
@@ -447,7 +445,6 @@ export const suggestLocations = async (title: string, description: string): Prom
     }
 };
 
-// FIX: Add categorizeDatePost function to categorize date ideas using AI.
 export const categorizeDatePost = async (title: string, description: string): Promise<DateCategory[]> => {
     if (!API_KEY) throw new Error("Gemini API key not configured.");
     const availableCategories: DateCategory[] = ['Food & Drink', 'Outdoors & Adventure', 'Arts & Culture', 'Nightlife', 'Relaxing & Casual', 'Active & Fitness', 'Adult (18+)'];
@@ -495,7 +492,6 @@ export const categorizeDatePost = async (title: string, description: string): Pr
     }
 };
 
-// FIX: Add optimizePhotoOrder function to reorder user photos for best impression.
 export const optimizePhotoOrder = async (photos: string[]): Promise<string[]> => {
     if (!API_KEY) throw new Error("Gemini API key not configured.");
     if (photos.length < 2) return photos;
@@ -557,7 +553,6 @@ export const optimizePhotoOrder = async (photos: string[]): Promise<string[]> =>
     }
 };
 
-// FIX: Add generateAppBackground to create background images from a prompt.
 export const generateAppBackground = async (prompt: string): Promise<string> => {
     if (!API_KEY) throw new Error("Gemini API key not configured.");
     try {
@@ -579,7 +574,6 @@ export const generateAppBackground = async (prompt: string): Promise<string> => 
     }
 };
 
-// FIX: Add generateChatReplies function for AI-powered chat suggestions.
 export const generateChatReplies = async (currentUser: User, otherUser: User, messages: Message[]): Promise<string[]> => {
     if (!API_KEY) throw new Error("Gemini API key not configured.");
 
@@ -628,7 +622,6 @@ export const generateChatReplies = async (currentUser: User, otherUser: User, me
     }
 };
 
-// FIX: Add getWingmanTip function to provide AI dating coach advice.
 export const getWingmanTip = async (currentUser: User, otherUser: User, messages: Message[]): Promise<string> => {
     if (!API_KEY) throw new Error("Gemini API key not configured.");
     
@@ -661,7 +654,6 @@ export const getWingmanTip = async (currentUser: User, otherUser: User, messages
     }
 };
 
-// FIX: Add generatePickupLines for AI-powered conversation starters.
 export const generatePickupLines = async (currentUser: User, otherUser: User): Promise<string[]> => {
     if (!API_KEY) throw new Error("Gemini API key not configured.");
     
