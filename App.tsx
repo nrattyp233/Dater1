@@ -147,6 +147,13 @@ const MainApp: React.FC = () => {
     // NEW: State for target chat user
     const [selectedChatUserId, setSelectedChatUserId] = useState<number | null>(null);
 
+    // --- PULL TO REFRESH STATE ---
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const [pullY, setPullY] = useState(0);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const pullStartY = useRef(0);
+    const pullStartX = useRef(0);
+
     const fetchInitialData = async () => {
         const userProfile = await api.getCurrentUserProfile();
 
@@ -254,51 +261,51 @@ const MainApp: React.FC = () => {
     }, [isAuthenticated, searchLocation, showToast]);
 
 
-    useEffect(() => {
-        const fetchAndExpandSearch = async () => {
-            if (!isAuthenticated || !searchLocation) {
-                setLocalEvents([]);
-                setEffectiveSearchLocation('');
-                setIsSearchExpanded(false);
-                return;
-            }
-            
-            setIsEventsLoading(true);
-            try {
-                const initialEvents = await api.getLocalEvents(searchLocation);
-                const initialPostsCount = datePosts.filter(p => p.location.toLowerCase().includes(searchLocation.toLowerCase())).length;
-                const totalResults = initialEvents.length + initialPostsCount;
+    const fetchAndExpandSearch = async (location: string) => {
+        if (!isAuthenticated || !location) {
+            setLocalEvents([]);
+            setEffectiveSearchLocation('');
+            setIsSearchExpanded(false);
+            return;
+        }
+        
+        setIsEventsLoading(true);
+        try {
+            const initialEvents = await api.getLocalEvents(location);
+            const initialPostsCount = datePosts.filter(p => p.location.toLowerCase().includes(location.toLowerCase())).length;
+            const totalResults = initialEvents.length + initialPostsCount;
 
-                const MIN_RESULTS_THRESHOLD = 5;
-                if (totalResults < MIN_RESULTS_THRESHOLD) {
-                    const majorCity = await getNearbyMajorCity(searchLocation);
-                    
-                    if (majorCity && majorCity.toLowerCase() !== searchLocation.toLowerCase()) {
-                        const expandedEvents = await api.getLocalEvents(majorCity);
-                        setLocalEvents(expandedEvents);
-                        setEffectiveSearchLocation(majorCity);
-                        setIsSearchExpanded(true);
-                    } else {
-                        setLocalEvents(initialEvents);
-                        setEffectiveSearchLocation(searchLocation);
-                        setIsSearchExpanded(false);
-                    }
+            const MIN_RESULTS_THRESHOLD = 5;
+            if (totalResults < MIN_RESULTS_THRESHOLD) {
+                const majorCity = await getNearbyMajorCity(location);
+                
+                if (majorCity && majorCity.toLowerCase() !== location.toLowerCase()) {
+                    const expandedEvents = await api.getLocalEvents(majorCity);
+                    setLocalEvents(expandedEvents);
+                    setEffectiveSearchLocation(majorCity);
+                    setIsSearchExpanded(true);
                 } else {
                     setLocalEvents(initialEvents);
-                    setEffectiveSearchLocation(searchLocation);
+                    setEffectiveSearchLocation(location);
                     setIsSearchExpanded(false);
                 }
-            } catch (error) {
-                setLocalEvents([]);
-                setEffectiveSearchLocation(searchLocation);
+            } else {
+                setLocalEvents(initialEvents);
+                setEffectiveSearchLocation(location);
                 setIsSearchExpanded(false);
-            } finally {
-                setIsEventsLoading(false);
             }
-        };
+        } catch (error) {
+            setLocalEvents([]);
+            setEffectiveSearchLocation(location);
+            setIsSearchExpanded(false);
+        } finally {
+            setIsEventsLoading(false);
+        }
+    };
 
-        fetchAndExpandSearch();
-    }, [searchLocation, isAuthenticated, showToast, datePosts]);
+    useEffect(() => {
+        fetchAndExpandSearch(searchLocation);
+    }, [searchLocation, isAuthenticated]);
 
 
     useEffect(() => {
@@ -308,6 +315,79 @@ const MainApp: React.FC = () => {
         lastColorIndex.current = newIndex;
         setActiveColorTheme(colorThemes[newIndex]);
     }, [currentView]);
+
+    // --- PULL TO REFRESH LOGIC ---
+    const handleManualRefresh = async () => {
+        if (!currentUser) return;
+        setIsRefreshing(true);
+        try {
+            // Refresh all dynamic data
+            const [fetchedUsers, fetchedDatePosts, fetchedMessages, fetchedMatches, fetchedEvents] = await Promise.all([
+                api.getUsers(), 
+                api.getDatePosts(), 
+                api.getMessages(),
+                api.getMatches(currentUser.id),
+                api.getLocalEvents(searchLocation) // Also refresh events
+            ]);
+            setUsers(fetchedUsers);
+            setDatePosts(fetchedDatePosts);
+            setMessages(fetchedMessages);
+            setMatches(fetchedMatches);
+            setLocalEvents(fetchedEvents);
+            showToast('Everything is up to date!', 'success');
+        } catch (error) {
+            showToast('Refresh failed.', 'error');
+        } finally {
+            // Add a small delay for smoother UI
+            setTimeout(() => {
+                setIsRefreshing(false);
+                setPullY(0);
+            }, 500);
+        }
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (scrollContainerRef.current && scrollContainerRef.current.scrollTop === 0) {
+            pullStartY.current = e.touches[0].clientY;
+            pullStartX.current = e.touches[0].clientX;
+        } else {
+            pullStartY.current = 0;
+        }
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (pullStartY.current === 0 || isRefreshing) return;
+        
+        const touchY = e.touches[0].clientY;
+        const touchX = e.touches[0].clientX;
+        
+        if (Math.abs(touchX - pullStartX.current) > Math.abs(touchY - pullStartY.current) + 10) {
+             pullStartY.current = 0; // Prioritize horizontal scroll
+            return;
+        }
+
+        const diff = touchY - pullStartY.current;
+        
+        if (diff > 0) {
+            e.preventDefault(); // Prevent browser's native pull-to-refresh
+            const dampening = 0.4;
+            setPullY(Math.min(diff * dampening, 150));
+        }
+    };
+
+    const handleTouchEnd = () => {
+        if (isRefreshing || pullY === 0) return;
+        
+        const REFRESH_THRESHOLD = 80;
+        if (pullY > REFRESH_THRESHOLD) {
+            setPullY(60);
+            handleManualRefresh();
+        } else {
+            setPullY(0);
+        }
+        pullStartY.current = 0;
+    };
+
 
     const matchedUsers = useMemo(() => {
         return users.filter(user => matches.includes(user.id));
@@ -683,7 +763,21 @@ const MainApp: React.FC = () => {
                         <div className={`absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-gradient-to-r ${activeColorTheme.gradientTo} to-transparent rounded-full blur-[120px] opacity-20`}></div>
                 </div>
 
-                <div className="relative z-10 h-full overflow-y-auto p-4 scrollbar-hide">
+                <div 
+                    ref={scrollContainerRef}
+                    className="relative z-10 h-full overflow-y-auto p-4 scrollbar-hide"
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    style={{ transform: `translateY(${pullY}px)`, transition: isRefreshing || pullY === 0 ? 'transform 0.3s ease' : 'none' }}
+                >
+                    {/* Pull to Refresh Spinner */}
+                    <div className="absolute top-0 left-0 right-0 flex justify-center items-center pointer-events-none" style={{ height: '60px', transform: 'translateY(-100%)' }}>
+                        <div className={`transition-transform duration-300 ${isRefreshing ? 'animate-spin' : ''}`} style={{ transform: `rotate(${pullY * 2}deg)` }}>
+                            <div className="w-8 h-8 rounded-full border-t-2 border-b-2 border-brand-pink opacity-80"></div>
+                        </div>
+                    </div>
+
                     {currentView === View.Swipe && (
                         <SwipeDeck 
                             users={usersForSwiping} 

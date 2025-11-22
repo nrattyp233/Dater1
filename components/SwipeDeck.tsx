@@ -28,13 +28,19 @@ const SwipeDeck: React.FC<SwipeDeckProps> = ({ users, currentUser, onSwipe, onSu
   const [showSuperLikeAnimation, setShowSuperLikeAnimation] = useState(false);
   
   const activeCardRef = useRef<SwipeCardRef>(null);
+  
+  // Ref to track the last user we analyzed to prevent re-running on background updates
+  const lastAnalyzedUserId = useRef<number | null>(null);
 
   // Get the last 3 users for the stack
   const userStack = useMemo(() => users.slice(Math.max(users.length - 3, 0)), [users]);
   const topUser = userStack.length > 0 ? userStack[userStack.length - 1] : null;
 
   useEffect(() => {
-    if (topUser && currentUser) {
+    // Only run if we have a user, a current user, and we haven't analyzed this specific user ID yet
+    if (topUser && currentUser && topUser.id !== lastAnalyzedUserId.current) {
+        lastAnalyzedUserId.current = topUser.id;
+        
         setIsCompatibilityLoading(true);
         setIsVibeLoading(true);
         setCompatibility(null);
@@ -57,12 +63,15 @@ const SwipeDeck: React.FC<SwipeDeckProps> = ({ users, currentUser, onSwipe, onSu
         };
         fetchAIFeatures();
     }
-  }, [topUser, currentUser]);
+  }, [topUser?.id, currentUser?.id]); // EDEN UPDATE: Depend on stable IDs, not objects
   
   // This function is passed to the SwipeCard and called AFTER the animation completes
   const handleSwipeComplete = (userId: number, direction: 'left' | 'right') => {
     onSwipe(userId, direction);
     setCompatibility(null);
+    setProfileVibe(null);
+    lastAnalyzedUserId.current = null; // Reset so next card gets analyzed
+    
     if (direction === 'right') {
         setShowMatchAnimation(true);
         setTimeout(() => setShowMatchAnimation(false), 2500);
@@ -106,6 +115,8 @@ const SwipeDeck: React.FC<SwipeDeckProps> = ({ users, currentUser, onSwipe, onSu
     if (currentUser?.isPremium) {
         if (canRecall) {
             onRecall();
+            // Reset analysis ref when recalling so we re-fetch if needed (or we could cache)
+            lastAnalyzedUserId.current = null; 
         }
     } else {
         onPremiumFeatureClick();
