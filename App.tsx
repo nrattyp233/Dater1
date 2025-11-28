@@ -180,6 +180,7 @@ const MainApp: React.FC = () => {
                 fetchedMessages, 
                 fetchedMatches, 
                 fetchedSwipedLeftIds,
+                fetchedSwipedRightIds,
                 fetchedBusinesses,
                 fetchedDeals
             ] = await Promise.all([
@@ -188,6 +189,7 @@ const MainApp: React.FC = () => {
                 api.getMessages(),
                 api.getMatches(userProfile.id),
                 api.getSwipedLeftIds(userProfile.id),
+                api.getSwipedRightIds(userProfile.id),
                 api.getBusinesses(),
                 api.getDealsForBusiness(0),
             ]);
@@ -196,6 +198,7 @@ const MainApp: React.FC = () => {
             setMessages(fetchedMessages);
             setMatches(fetchedMatches);
             setSwipedLeftIds(fetchedSwipedLeftIds);
+            setSwipedRightIds(fetchedSwipedRightIds);
             setBusinesses(fetchedBusinesses);
             setDeals(fetchedDeals);
             
@@ -322,17 +325,21 @@ const MainApp: React.FC = () => {
         setIsRefreshing(true);
         try {
             // Refresh all dynamic data
-            const [fetchedUsers, fetchedDatePosts, fetchedMessages, fetchedMatches, fetchedEvents] = await Promise.all([
+            const [fetchedUsers, fetchedDatePosts, fetchedMessages, fetchedMatches, fetchedSwipedLeftIds, fetchedSwipedRightIds, fetchedEvents] = await Promise.all([
                 api.getUsers(), 
                 api.getDatePosts(), 
                 api.getMessages(),
                 api.getMatches(currentUser.id),
+                api.getSwipedLeftIds(currentUser.id),
+                api.getSwipedRightIds(currentUser.id),
                 api.getLocalEvents(searchLocation) // Also refresh events
             ]);
             setUsers(fetchedUsers);
             setDatePosts(fetchedDatePosts);
             setMessages(fetchedMessages);
             setMatches(fetchedMatches);
+            setSwipedLeftIds(fetchedSwipedLeftIds);
+            setSwipedRightIds(fetchedSwipedRightIds);
             setLocalEvents(fetchedEvents);
             showToast('Everything is up to date!', 'success');
         } catch (error) {

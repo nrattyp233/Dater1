@@ -321,6 +321,17 @@ export const getSwipedLeftIds = async (userId: number): Promise<number[]> => {
     return data.map((s: any) => s.swiped_id);
 };
 
+export const getSwipedRightIds = async (userId: number): Promise<number[]> => {
+    const { data, error } = await supabase
+        .from('swipes')
+        .select('swiped_id')
+        .eq('swiper_id', userId)
+        .eq('direction', 'right');
+
+    if (error) return [];
+    return data.map((s: any) => s.swiped_id);
+};
+
 export const recordSwipe = async (userId: number, swipedUserId: number, direction: 'left' | 'right'): Promise<{ isMatch: boolean }> => {
     // Record swipe
     await supabase.from('swipes').insert({
