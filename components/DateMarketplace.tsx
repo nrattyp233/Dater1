@@ -211,10 +211,7 @@ const LocalEventCard: React.FC<LocalEventCardProps> = ({ event, onCreate, onView
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent" />
                     <div className="relative p-4 flex flex-col justify-end h-full text-white min-h-[200px]">
                         <div className="flex-grow"></div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
-                            <span className="text-xs font-semibold text-cyan-300">{formattedEventDate}</span>
-                        </div>
+                        <div className="text-sm font-bold text-cyan-300 mb-1">{formattedEventDate}</div>
                         <h4 className="font-bold text-lg">{event.title}</h4>
                         <p className="text-sm text-gray-300">{event.location}</p>
                     </div>
