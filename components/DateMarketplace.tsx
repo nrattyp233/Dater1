@@ -32,6 +32,17 @@ const DateCard: React.FC<DateCardProps> = ({ datePost, allUsers, allBusinesses, 
         weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
     });
     
+    const formattedTime = new Date(datePost.dateTime).toLocaleTimeString('en-US', {
+        hour: 'numeric', minute: '2-digit'
+    });
+    
+    const formattedDateOnly = new Date(datePost.dateTime).toLocaleDateString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric'
+    });
+    
+    // Extract price range from description or use default
+    const priceRange = datePost.description.match(/\$[\d,]+-\$[\d,]+|\$[\d,]+\+/)?.[0] || 'Free';
+    
     const isMaleTheme = gender === Gender.Male;
     const hoverBorderClass = isMaleTheme ? 'hover:border-green-600' : 'hover:border-brand-pink';
     const titleClass = isMaleTheme ? 'text-white' : 'text-brand-light';
@@ -74,6 +85,33 @@ const DateCard: React.FC<DateCardProps> = ({ datePost, allUsers, allBusinesses, 
                     </button>
                 )}
             </div>
+            
+            {/* Scannable Data Bar */}
+            <div className="flex items-center justify-between bg-dark-3/50 rounded-lg p-3 border border-dark-3">
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${isMaleTheme ? 'bg-lime-400' : 'bg-brand-pink'}`}></div>
+                        <span className="text-sm font-semibold text-white">{formattedDateOnly}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${isMaleTheme ? 'bg-green-400' : 'bg-cyan-400'}`}></div>
+                        <span className="text-sm font-semibold text-white">{formattedTime}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${isMaleTheme ? 'bg-yellow-400' : 'bg-orange-400'}`}></div>
+                        <span className="text-sm font-semibold text-white">{priceRange}</span>
+                    </div>
+                </div>
+                <button 
+                    onClick={handleGetDirections}
+                    className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 font-semibold text-sm transition-colors"
+                    aria-label="Get directions"
+                >
+                    <MapPinIcon className="w-4 h-4" />
+                    Directions
+                </button>
+            </div>
+            
             <div>
                 <h3 className={`text-xl font-bold ${titleClass}`}>{datePost.title}</h3>
                 <p className="text-gray-300 mt-2">{datePost.description}</p>
@@ -301,6 +339,7 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
     const [activeCategory, setActiveCategory] = useState<DateCategory | 'All'>('All');
     const [tempSearch, setTempSearch] = useState(searchLocation);
     const [selectedEvent, setSelectedEvent] = useState<LocalEvent | null>(null);
+    const [sortBy, setSortBy] = useState<'date' | 'price'>('date');
     
     useEffect(() => {
         setTempSearch(searchLocation);
@@ -314,6 +353,25 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
             return categoryMatch && locationMatch;
         });
     }, [datePosts, activeCategory, effectiveSearchLocation]);
+
+    const sortedDatePosts = useMemo(() => {
+        const sorted = [...filteredDatePosts];
+        if (sortBy === 'date') {
+            sorted.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+        } else if (sortBy === 'price') {
+            sorted.sort((a, b) => {
+                const getPrice = (description: string) => {
+                    const match = description.match(/\$[\d,]+-\$[\d,]+|\$[\d,]+\+/);
+                    if (!match) return 0;
+                    const numbers = match[0].match(/[\d,]+/g);
+                    if (!numbers) return 0;
+                    return parseInt(numbers[0].replace(',', ''));
+                };
+                return getPrice(a.description) - getPrice(b.description);
+            });
+        }
+        return sorted;
+    }, [filteredDatePosts, sortBy]);
 
     const allCategories = ['All' as const, ...Object.keys(DATE_CATEGORIES) as DateCategory[]];
     
@@ -352,12 +410,19 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
              <h2 className={`text-3xl font-bold text-center mb-8 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>Date Marketplace</h2>
              
             <div className="mb-12">
-                <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center justify-between gap-3 mb-6">
                     <div className="flex items-center gap-3">
-                        <TicketIcon className="w-6 h-6 text-cyan-400" />
-                        <h3 className="text-2xl font-bold text-white capitalize">{effectiveSearchLocation ? `Happening in ${effectiveSearchLocation}` : 'Search a City to Find Events'}</h3>
+                        <div className={`w-8 h-8 rounded-full ${activeColorTheme.bg} ${activeColorTheme.glow} flex items-center justify-center`}>
+                            <TicketIcon className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-2xl font-bold text-white capitalize">{effectiveSearchLocation ? `Happening in ${effectiveSearchLocation}` : 'Search a City to Find Events'}</h3>
+                            <p className="text-sm text-gray-400">AI-powered real-time event ideas</p>
+                        </div>
                     </div>
-                     <button onClick={onSeeAll} className="text-cyan-400 font-semibold hover:text-cyan-300 transition-colors">See All &rarr;</button>
+                     <button onClick={onSeeAll} className="text-cyan-400 font-semibold hover:text-cyan-300 transition-colors flex items-center gap-1">
+                        See All <span className="text-lg">&rarr;</span>
+                    </button>
                 </div>
                 {isEventsLoading ? (
                     <div className="flex gap-4">
@@ -367,13 +432,28 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
                     </div>
                 ) : (
                     localEvents.length > 0 ? (
-                        <div className="flex gap-4 overflow-x-auto scrollbar-hide py-4 -mx-4 px-4">
-                            {localEvents.map(event => (
-                                <LocalEventCard key={event.id} event={event} onCreate={onCreateDateFromEvent} onViewDetails={setSelectedEvent} />
-                            ))}
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-500/5 to-transparent pointer-events-none"></div>
+                            <div className="flex gap-4 overflow-x-auto scrollbar-hide py-4 -mx-4 px-4 relative">
+                                {localEvents.map((event, index) => (
+                                    <div key={event.id} className={`relative ${index === 0 ? 'ml-0' : ''}`}>
+                                        {index === 0 && (
+                                            <div className="absolute -top-2 -left-2 z-10">
+                                                <div className={`px-2 py-1 text-xs font-bold text-white rounded-full ${activeColorTheme.bg} ${activeColorTheme.glow}`}>
+                                                    Featured
+                                                </div>
+                                            </div>
+                                        )}
+                                        <LocalEventCard key={event.id} event={event} onCreate={onCreateDateFromEvent} onViewDetails={setSelectedEvent} />
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     ) : (
-                        <div className="text-center text-gray-400 py-8 bg-dark-2 rounded-xl">
+                        <div className="text-center text-gray-400 py-8 bg-dark-2 rounded-xl border border-dark-3">
+                            <div className={`w-16 h-16 mx-auto mb-4 rounded-full bg-dark-3 flex items-center justify-center`}>
+                                <TicketIcon className="w-8 h-8 text-gray-400" />
+                            </div>
                             <h4 className="font-bold text-lg text-gray-300">
                                 {searchLocation ? `No events found for ${searchLocation}.` : "What's the plan?"}
                             </h4>
@@ -397,29 +477,72 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
                 </div>
             </div>
 
-            <div className="flex items-center gap-3 mb-4">
-                 <h3 className="text-2xl font-bold text-white">Community Date Ideas {effectiveSearchLocation && `in ${effectiveSearchLocation}`}</h3>
-            </div>
-            <form onSubmit={handleSearch} className="mb-4 flex gap-2">
-                <div className="relative flex-grow">
-                    <MapPinIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                        type="text"
-                        value={tempSearch}
-                        onChange={(e) => setTempSearch(e.target.value)}
-                        placeholder="Search by city to find events & dates..."
-                        className="w-full bg-dark-3 border border-dark-3 rounded-lg p-3 pl-10 text-white focus:ring-2 focus:ring-brand-pink focus:border-brand-pink transition"
-                    />
+            <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3">
+                    <h3 className="text-2xl font-bold text-white">Community Date Ideas {effectiveSearchLocation && `in ${effectiveSearchLocation}`}</h3>
                 </div>
-                <button type="submit" className="px-5 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition">Search</button>
-                 {searchLocation && (
-                    <button 
-                        type="button" 
-                        onClick={() => { onSearchLocationChange(''); setTempSearch(''); }}
-                        className="px-5 py-2 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 transition"
+                <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-400 font-medium">Sort by:</label>
+                    <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as 'date' | 'price')}
+                        className="bg-dark-3 text-white text-sm rounded-lg px-3 py-1.5 border border-dark-4 focus:border-brand-pink focus:outline-none"
                     >
-                        Clear
+                        <option value="date">Date</option>
+                        <option value="price">Price</option>
+                    </select>
+                </div>
+            </div>
+            <form onSubmit={handleSearch} className="mb-4">
+                <div className="flex gap-2">
+                    <div className="relative flex-grow group">
+                        <MapPinIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-cyan-400 transition-colors" />
+                        <input
+                            type="text"
+                            value={tempSearch}
+                            onChange={(e) => setTempSearch(e.target.value)}
+                            placeholder="Search by city to find events & dates..."
+                            className="w-full bg-dark-3 border border-dark-3 rounded-lg p-3 pl-10 text-white focus:ring-2 focus:ring-brand-pink focus:border-brand-pink transition group-hover:border-dark-2"
+                        />
+                        {tempSearch && (
+                            <button
+                                type="button"
+                                onClick={() => setTempSearch('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                                aria-label="Clear search"
+                            >
+                                <XIcon className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
+                    <button type="submit" className="px-5 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition flex items-center gap-2">
+                        <MapPinIcon className="w-4 h-4" />
+                        Search
                     </button>
+                    {searchLocation && (
+                        <button 
+                            type="button" 
+                            onClick={() => { onSearchLocationChange(''); setTempSearch(''); }}
+                            className="px-5 py-2 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 transition"
+                        >
+                            Clear
+                        </button>
+                    )}
+                </div>
+                {tempSearch && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                        <div className="text-xs text-gray-400">Popular locations:</div>
+                        {['Denver', 'New York', 'Los Angeles', 'Chicago'].map(city => (
+                            <button
+                                key={city}
+                                type="button"
+                                onClick={() => setTempSearch(city)}
+                                className="text-xs px-2 py-1 bg-dark-3 text-gray-300 rounded-full hover:bg-dark-2 hover:text-white transition"
+                            >
+                                {city}
+                            </button>
+                        ))}
+                    </div>
                 )}
             </form>
             
@@ -453,8 +576,8 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
                         <DateCardSkeleton />
                     </>
                 ) : effectiveSearchLocation ? (
-                    filteredDatePosts.length > 0 ? (
-                        filteredDatePosts.map(post => {
+                    sortedDatePosts.length > 0 ? (
+                        sortedDatePosts.map(post => {
                             const isInterested = post.applicants.includes(currentUserId);
                             const isCreator = post.createdBy === currentUserId;
                             return (
@@ -476,9 +599,20 @@ const DateMarketplace: React.FC<DateMarketplaceProps> = ({ datePosts, allUsers, 
                             );
                         })
                     ) : (
-                        <div className="text-center text-gray-400 py-12">
-                            <h3 className="text-xl font-bold text-gray-300">No dates found.</h3>
-                            <p className="mt-2">Try a different location or category, or be the first to post one!</p>
+                        <div className="text-center text-gray-400 py-16">
+                            <div className="mb-8">
+                                <div className={`w-20 h-20 mx-auto mb-4 rounded-full ${activeColorTheme.bg} ${activeColorTheme.glow} flex items-center justify-center`}>
+                                    <PlusIcon className="w-10 h-10 text-white" />
+                                </div>
+                                <h3 className="text-2xl font-bold text-gray-300 mb-2">No dates found in your area</h3>
+                                <p className="text-gray-400 mb-6">Be the first to create an amazing date idea for your community!</p>
+                            </div>
+                            <button 
+                                onClick={() => window.location.href = '#create'}
+                                className={`px-8 py-4 rounded-lg font-bold text-white text-lg ${activeColorTheme.bg} hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 ${activeColorTheme.glow}`}
+                            >
+                                Post a Date Now
+                            </button>
                         </div>
                     )
                 ) : (
