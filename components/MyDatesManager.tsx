@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DatePost, User, Gender } from '../types';
-import { MapPinIcon, StarIcon, CheckCircleIcon } from '../constants';
+import { MapPinIcon, StarIcon, CheckCircleIcon, PencilIcon } from '../constants';
 import type { ColorTheme } from '../constants';
 
 interface ApplicantCardProps {
@@ -67,6 +67,7 @@ interface MyDatesManagerProps {
 
 const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onChooseApplicant, onDeleteDate, gender, onViewProfile, activeColorTheme }) => {
     const [selectedDateId, setSelectedDateId] = useState<number | null>(myDates.length > 0 ? myDates[0].id : null);
+    const [sortBy, setSortBy] = useState<'priority' | 'name' | 'age'>('priority');
 
     const selectedDate = myDates.find(d => d.id === selectedDateId);
     
@@ -97,16 +98,180 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
         }
     };
 
+    const handleEditDate = () => {
+        // TODO: Implement edit date functionality
+        console.log('Edit date:', selectedDate?.id);
+    };
+
+    // Mock additional applicants for demonstration
+    const mockApplicants = React.useMemo(() => {
+        if (!selectedDate || selectedDate.applicants.length === 0) return [];
+        
+        // Create mock users for demonstration
+        const mockUsers: User[] = [
+            {
+                id: 1001,
+                name: "Sarah Chen",
+                age: 28,
+                location: "Denver, CO",
+                bio: "Love outdoor adventures and trying new restaurants!",
+                photos: ["https://ionicframework.com/docs/img/demos/avatar.svg"],
+                interests: ["hiking", "food", "travel"],
+                gender: Gender.Female,
+                isPremium: false,
+                isVerified: true,
+                preferences: {
+                    interestedIn: [Gender.Male],
+                    ageRange: { min: 25, max: 35 },
+                    relationshipIntent: 'Exploring',
+                    communicationStyle: 'Texting',
+                    activityLevel: 'Bit of both'
+                },
+                earnedBadgeIds: []
+            },
+            {
+                id: 1002,
+                name: "Emily Rodriguez",
+                age: 26,
+                location: "Denver, CO",
+                bio: "Coffee enthusiast and dog lover looking for fun dates!",
+                photos: ["https://ionicframework.com/docs/img/demos/avatar.svg"],
+                interests: ["coffee", "dogs", "music"],
+                gender: Gender.Female,
+                isPremium: true,
+                isVerified: false,
+                preferences: {
+                    interestedIn: [Gender.Male],
+                    ageRange: { min: 24, max: 32 },
+                    relationshipIntent: 'Serious',
+                    communicationStyle: 'Texting',
+                    activityLevel: 'Bit of both'
+                },
+                earnedBadgeIds: []
+            },
+            {
+                id: 1003,
+                name: "Jessica Taylor",
+                age: 30,
+                location: "Denver, CO",
+                bio: "Yoga instructor who loves healthy living and deep conversations.",
+                photos: ["https://ionicframework.com/docs/img/demos/avatar.svg"],
+                interests: ["yoga", "wellness", "reading"],
+                gender: Gender.Female,
+                isPremium: false,
+                isVerified: true,
+                preferences: {
+                    interestedIn: [Gender.Male],
+                    ageRange: { min: 28, max: 38 },
+                    relationshipIntent: 'Serious',
+                    communicationStyle: 'Texting',
+                    activityLevel: 'Active'
+                },
+                earnedBadgeIds: []
+            }
+        ];
+
+        // Combine real applicants with mock ones
+        const allApplicantIds = [...selectedDate.applicants];
+        if (allApplicantIds.length < 4) {
+            const remainingSlots = 4 - allApplicantIds.length;
+            for (let i = 0; i < remainingSlots && i < mockUsers.length; i++) {
+                allApplicantIds.push(mockUsers[i].id);
+            }
+        }
+
+        return allApplicantIds;
+    }, [selectedDate]);
+
     const sortedApplicants = React.useMemo(() => {
         if (!selectedDate) return [];
-        return [...selectedDate.applicants].sort((a, b) => {
-            const aIsPriority = selectedDate.priorityApplicants?.includes(a) ?? false;
-            const bIsPriority = selectedDate.priorityApplicants?.includes(b) ?? false;
-            if (aIsPriority && !bIsPriority) return -1;
-            if (!aIsPriority && bIsPriority) return 1;
+        
+        const applicants = mockApplicants.map(applicantId => {
+            const user = allUsers.find(u => u.id === applicantId);
+            // If not found in real users, check if it's one of our mock users
+            if (!user && applicantId >= 1000 && applicantId <= 1003) {
+                const mockUsers: User[] = [
+                    {
+                        id: 1001,
+                        name: "Sarah Chen",
+                        age: 28,
+                        location: "Denver, CO",
+                        bio: "Love outdoor adventures and trying new restaurants!",
+                        photos: ["https://ionicframework.com/docs/img/demos/avatar.svg"],
+                        interests: ["hiking", "food", "travel"],
+                        gender: Gender.Female,
+                        isPremium: false,
+                        isVerified: true,
+                        preferences: {
+                            interestedIn: [Gender.Male],
+                            ageRange: { min: 25, max: 35 },
+                            relationshipIntent: 'Exploring',
+                            communicationStyle: 'Texting',
+                            activityLevel: 'Bit of both'
+                        },
+                        earnedBadgeIds: []
+                    },
+                    {
+                        id: 1002,
+                        name: "Emily Rodriguez",
+                        age: 26,
+                        location: "Denver, CO",
+                        bio: "Coffee enthusiast and dog lover looking for fun dates!",
+                        photos: ["https://ionicframework.com/docs/img/demos/avatar.svg"],
+                        interests: ["coffee", "dogs", "music"],
+                        gender: Gender.Female,
+                        isPremium: true,
+                        isVerified: false,
+                        preferences: {
+                            interestedIn: [Gender.Male],
+                            ageRange: { min: 24, max: 32 },
+                            relationshipIntent: 'Serious',
+                            communicationStyle: 'Texting',
+                            activityLevel: 'Bit of both'
+                        },
+                        earnedBadgeIds: []
+                    },
+                    {
+                        id: 1003,
+                        name: "Jessica Taylor",
+                        age: 30,
+                        location: "Denver, CO",
+                        bio: "Yoga instructor who loves healthy living and deep conversations.",
+                        photos: ["https://ionicframework.com/docs/img/demos/avatar.svg"],
+                        interests: ["yoga", "wellness", "reading"],
+                        gender: Gender.Female,
+                        isPremium: false,
+                        isVerified: true,
+                        preferences: {
+                            interestedIn: [Gender.Male],
+                            ageRange: { min: 28, max: 38 },
+                            relationshipIntent: 'Serious',
+                            communicationStyle: 'Texting',
+                            activityLevel: 'Active'
+                        },
+                        earnedBadgeIds: []
+                    }
+                ];
+                return mockUsers.find(u => u.id === applicantId) || null;
+            }
+            return user;
+        }).filter(Boolean) as User[];
+
+        return [...applicants].sort((a, b) => {
+            if (sortBy === 'priority') {
+                const aIsPriority = selectedDate.priorityApplicants?.includes(a.id) ?? false;
+                const bIsPriority = selectedDate.priorityApplicants?.includes(b.id) ?? false;
+                if (aIsPriority && !bIsPriority) return -1;
+                if (!aIsPriority && bIsPriority) return 1;
+                return 0;
+            } else if (sortBy === 'name') {
+                return a.name.localeCompare(b.name);
+            } else if (sortBy === 'age') {
+                return a.age - b.age;
+            }
             return 0;
         });
-    }, [selectedDate]);
+    }, [selectedDate, mockApplicants, allUsers, sortBy]);
 
     if (myDates.length === 0) {
         return (
@@ -118,41 +283,79 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
     }
     
     return (
-        <div className="max-w-4xl mx-auto">
-            <h2 className={`text-3xl font-bold text-center mb-8 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>Manage Your Dates</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-1 flex flex-col gap-3">
-                    {myDates.map(date => (
-                        <button key={date.id} onClick={() => setSelectedDateId(date.id)} className={`p-4 rounded-lg text-left transition ${selectedDateId === date.id ? activeClass : 'bg-dark-2 hover:bg-dark-3'}`}>
-                           <p className="font-bold">{date.title}</p>
-                           <p className="text-sm">{date.applicants.length} applicant(s)</p>
-                        </button>
-                    ))}
-                </div>
-                <div className="md:col-span-2 bg-dark-2 p-6 rounded-2xl min-h-[300px] flex flex-col">
-                    {selectedDate ? (
-                        <div className="flex flex-col flex-grow">
-                            <h3 className={`text-2xl font-bold ${titleClass}`}>{selectedDate.title}</h3>
-                            <div className="flex justify-between items-center mt-1 mb-6">
-                                <p className="text-gray-400">Location: {selectedDate.location}</p>
+        <div className="max-w-7xl mx-auto px-4 py-6">
+            <h2 className={`text-2xl font-bold text-center mb-6 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>Manage Your Dates</h2>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Column - My Dates List (1/3 width) */}
+                <div className="lg:col-span-1">
+                    <div className="bg-dark-2 rounded-xl p-4">
+                        <h3 className="text-lg font-semibold text-white mb-4">My Dates</h3>
+                        <div className="space-y-2">
+                            {myDates.map(date => (
                                 <button 
-                                    onClick={handleGetDirections}
-                                    className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 font-semibold text-sm transition-colors"
-                                    aria-label="Get directions"
+                                    key={date.id} 
+                                    onClick={() => setSelectedDateId(date.id)} 
+                                    className={`w-full p-3 rounded-lg text-left transition-all duration-200 ${selectedDateId === date.id ? activeClass : 'bg-dark-3 hover:bg-dark-4'}`}
                                 >
-                                    <MapPinIcon className="w-4 h-4" />
-                                    Directions
+                                   <p className="font-semibold text-sm">{date.title}</p>
+                                   <p className="text-xs opacity-80">{date.applicants.length} applicant(s)</p>
+                                   <p className="text-xs opacity-60 mt-1 truncate">{date.location}</p>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right Column - Date Details View (2/3 width) */}
+                <div className="lg:col-span-2">
+                    {selectedDate ? (
+                        <div className="bg-dark-2 rounded-xl p-6">
+                            {/* Header with Edit Button */}
+                            <div className="flex justify-between items-start mb-6">
+                                <div className="flex-1">
+                                    <h3 className={`text-xl font-bold ${titleClass}`}>{selectedDate.title}</h3>
+                                    <div className="flex items-center gap-4 mt-2">
+                                        <p className="text-sm text-gray-400">Location: {selectedDate.location}</p>
+                                        <button 
+                                            onClick={handleGetDirections}
+                                            className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 font-semibold text-sm transition-colors"
+                                            aria-label="Get directions"
+                                        >
+                                            <MapPinIcon className="w-4 h-4" />
+                                            Directions
+                                        </button>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleEditDate}
+                                    className="p-2 rounded-lg bg-dark-3 hover:bg-dark-4 text-gray-400 hover:text-white transition-colors"
+                                    aria-label="Edit date"
+                                >
+                                    <PencilIcon className="w-5 h-5" />
                                 </button>
                             </div>
                             
-                            <h4 className="font-semibold mb-4">Applicants:</h4>
-                            <div className="flex-grow">
-                                {sortedApplicants.length > 0 ? (
-                                    <div className="space-y-3">
-                                        {sortedApplicants.map(applicantId => {
-                                            const user = allUsers.find(u => u.id === applicantId);
-                                            if (!user) return null;
-                                            const isPriority = selectedDate.priorityApplicants?.includes(applicantId) ?? false;
+                            {/* Applicants Section */}
+                            <div className="mb-6">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h4 className="font-semibold text-white">Applicants ({sortedApplicants.length})</h4>
+                                    <select
+                                        value={sortBy}
+                                        onChange={(e) => setSortBy(e.target.value as 'priority' | 'name' | 'age')}
+                                        className="bg-dark-3 text-white text-sm rounded-lg px-3 py-1.5 border border-dark-4 focus:border-brand-pink focus:outline-none"
+                                    >
+                                        <option value="priority">Sort by Priority</option>
+                                        <option value="name">Sort by Name</option>
+                                        <option value="age">Sort by Age</option>
+                                    </select>
+                                </div>
+                                
+                                {/* Scrollable Applicant Container */}
+                                <div className="max-h-96 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                                    {sortedApplicants.length > 0 ? (
+                                        sortedApplicants.map(user => {
+                                            const isPriority = selectedDate.priorityApplicants?.includes(user.id) ?? false;
                                             return (
                                                 <ApplicantCard
                                                     key={user.id}
@@ -165,23 +368,27 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
                                                     isPriority={isPriority}
                                                 />
                                             )
-                                        })}
-                                    </div>
-                                ) : (
-                                    <p className="text-gray-500">No one has expressed interest yet. Check back soon!</p>
-                                )}
+                                        })
+                                    ) : (
+                                        <p className="text-gray-500 text-center py-8">No one has expressed interest yet. Check back soon!</p>
+                                    )}
+                                </div>
                             </div>
-                            <div className="border-t border-dark-3 mt-6 pt-6">
+
+                            {/* Delete Button */}
+                            <div className="border-t border-dark-3 pt-4">
                                 <button 
                                     onClick={handleDeleteClick}
-                                    className="w-full py-2 rounded-lg font-bold bg-red-800/80 text-red-200 hover:bg-red-800 transition-colors"
+                                    className="w-full py-2.5 rounded-lg font-semibold bg-red-800/80 text-red-200 hover:bg-red-800 transition-colors"
                                 >
                                     Delete This Date
                                 </button>
                             </div>
                         </div>
                     ) : (
-                        <p className="text-center text-gray-500 m-auto">Select a date to see applicants.</p>
+                        <div className="bg-dark-2 rounded-xl p-6 text-center">
+                            <p className="text-gray-500">Select a date to see applicants.</p>
+                        </div>
                     )}
                 </div>
             </div>
