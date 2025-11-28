@@ -147,6 +147,16 @@ const MainApp: React.FC = () => {
     // NEW: State for target chat user
     const [selectedChatUserId, setSelectedChatUserId] = useState<number | null>(null);
 
+    // NEW: State for editing dates
+    const [editingDate, setEditingDate] = useState<DatePost | null>(null);
+
+    // Clear editingDate when navigating away from Create view
+    React.useEffect(() => {
+        if (currentView !== View.Create) {
+            setEditingDate(null);
+        }
+    }, [currentView]);
+
     // --- PULL TO REFRESH STATE ---
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [pullY, setPullY] = useState(0);
@@ -620,6 +630,18 @@ const MainApp: React.FC = () => {
         }
     };
 
+    const handleUpdateDate = async (updatedDate: DatePost) => {
+        try {
+            const updatedPost = await api.updateDatePost(updatedDate);
+            setDatePosts(prevPosts => prevPosts.map(post => post.id === updatedDate.id ? updatedPost : post));
+            showToast('Date updated successfully!', 'success');
+            setEditingDate(null);
+            setCurrentView(View.MyDates);
+        } catch (error: any) {
+            showToast(error.message || 'Failed to update date.', 'error');
+        }
+    };
+
     const handleChooseApplicant = async (dateId: number, applicantId: number) => {
         const post = datePosts.find(p => p.id === dateId);
         if (!post) return;
@@ -841,6 +863,7 @@ const MainApp: React.FC = () => {
                     {currentView === View.Create && (
                         <CreateDateForm 
                             onCreateDate={handleCreateDate} 
+                            onUpdateDate={handleUpdateDate}
                             currentUser={currentUser}
                             activeColorTheme={activeColorTheme}
                             onPremiumFeatureClick={handleOpenMonetizationModal}
@@ -848,6 +871,7 @@ const MainApp: React.FC = () => {
                             onClearEventForDate={() => setEventForDate(null)}
                             businessForDate={businessForDate}
                             onClearBusinessForDate={() => setBusinessForDate(null)}
+                            editingDate={editingDate}
                         />
                     )}
                     {currentView === View.Matches && (
@@ -881,6 +905,10 @@ const MainApp: React.FC = () => {
                             allUsers={users} 
                             onChooseApplicant={handleChooseApplicant} 
                             onDeleteDate={handleDeleteDate}
+                            onEditDate={(date) => {
+                                setEditingDate(date);
+                                setCurrentView(View.Create);
+                            }}
                             gender={currentUser.gender}
                             onViewProfile={handleViewProfile}
                             activeColorTheme={activeColorTheme}

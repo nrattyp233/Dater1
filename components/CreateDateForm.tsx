@@ -8,6 +8,7 @@ import type { ColorTheme } from '../constants';
 
 interface CreateDateFormProps {
     onCreateDate: (newDate: Omit<DatePost, 'id' | 'createdBy' | 'applicants' | 'chosenApplicantId' | 'categories'>) => Promise<void>;
+    onUpdateDate?: (updatedDate: DatePost) => Promise<void>;
     currentUser: User;
     activeColorTheme: ColorTheme;
     onPremiumFeatureClick: () => void;
@@ -15,16 +16,17 @@ interface CreateDateFormProps {
     onClearEventForDate: () => void;
     businessForDate: { business: Business, deal?: Deal } | null;
     onClearBusinessForDate: () => void;
+    editingDate?: DatePost | null;
 }
 
-const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUser, activeColorTheme, onPremiumFeatureClick, eventForDate, onClearEventForDate, businessForDate, onClearBusinessForDate }) => {
-    const [title, setTitle] = useState('');
+const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, onUpdateDate, currentUser, activeColorTheme, onPremiumFeatureClick, eventForDate, onClearEventForDate, businessForDate, onClearBusinessForDate, editingDate }) => {
+    const [title, setTitle] = useState(editingDate?.title || '');
     const [idea, setIdea] = useState('');
-    const [description, setDescription] = useState('');
-    const [location, setLocation] = useState('');
-    const [dateTime, setDateTime] = useState('');
-    const [linkedBusinessId, setLinkedBusinessId] = useState<number | undefined>();
-    const [linkedDealId, setLinkedDealId] = useState<number | undefined>();
+    const [description, setDescription] = useState(editingDate?.description || '');
+    const [location, setLocation] = useState(editingDate?.location || '');
+    const [dateTime, setDateTime] = useState(editingDate?.dateTime || '');
+    const [linkedBusinessId, setLinkedBusinessId] = useState(editingDate?.businessId || undefined);
+    const [linkedDealId, setLinkedDealId] = useState(editingDate?.dealId || undefined);
 
     const [isGenerating, setIsGenerating] = useState(false);
     const [isGeneratingFull, setIsGeneratingFull] = useState(false);
@@ -38,6 +40,7 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUs
     const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
     const isMaleTheme = currentUser.gender === Gender.Male;
+    const isEditMode = !!editingDate;
     
     const primaryButtonBg = isMaleTheme ? 'bg-green-700' : 'bg-brand-purple';
     const primaryButtonGradient = isMaleTheme ? 'from-green-700 to-green-800' : 'from-brand-pink to-brand-purple';
@@ -146,21 +149,43 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUs
             return;
         }
         setIsSubmitting(true);
-        await onCreateDate({ title, description, location, dateTime, businessId: linkedBusinessId, dealId: linkedDealId });
-        setTitle('');
-        setIdea('');
-        setDescription('');
-        setLocation('');
-        setDateTime('');
-        setLinkedBusinessId(undefined);
-        setLinkedDealId(undefined);
+        
+        if (isEditMode && onUpdateDate && editingDate) {
+            // Update existing date
+            const updatedDate: DatePost = {
+                ...editingDate,
+                title,
+                description,
+                location,
+                dateTime,
+                businessId: linkedBusinessId,
+                dealId: linkedDealId
+            };
+            await onUpdateDate(updatedDate);
+            showToast('Date updated successfully!', 'success');
+        } else {
+            // Create new date
+            await onCreateDate({ title, description, location, dateTime, businessId: linkedBusinessId, dealId: linkedDealId });
+            showToast('Your date has been posted!', 'success');
+        }
+        
+        // Reset form only if not in edit mode
+        if (!isEditMode) {
+            setTitle('');
+            setIdea('');
+            setDescription('');
+            setLocation('');
+            setDateTime('');
+            setLinkedBusinessId(undefined);
+            setLinkedDealId(undefined);
+        }
         setIsSubmitting(false);
     };
 
     return (
         <>
             <div className="max-w-xl mx-auto bg-dark-2 p-8 rounded-2xl shadow-lg border border-dark-3">
-                <h2 className={`text-3xl font-bold text-center mb-2 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>Create-A-Date</h2>
+                <h2 className={`text-3xl font-bold text-center mb-2 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>{isEditMode ? 'Edit Date' : 'Create-A-Date'}</h2>
                 
                 <div className="text-center mb-6">
                      <button 
@@ -229,7 +254,7 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, currentUs
                     </div>
                     
                     <button type="submit" disabled={isSubmitting} className={`w-full py-3 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r ${primaryButtonGradient} text-white hover:opacity-90 ${primaryGlow} disabled:opacity-60 disabled:cursor-wait`}>
-                        {isSubmitting ? 'Posting...' : 'Post Date'}
+                        {isSubmitting ? (isEditMode ? 'Updating...' : 'Posting...') : (isEditMode ? 'Update Date' : 'Post Date')}
                     </button>
                 </form>
             </div>

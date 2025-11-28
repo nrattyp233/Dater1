@@ -60,12 +60,13 @@ interface MyDatesManagerProps {
     allUsers: User[];
     onChooseApplicant: (dateId: number, applicantId: number) => void;
     onDeleteDate: (dateId: number) => void;
+    onEditDate: (date: DatePost) => void;
     gender?: Gender;
     onViewProfile: (user: User) => void;
     activeColorTheme: ColorTheme;
 }
 
-const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onChooseApplicant, onDeleteDate, gender, onViewProfile, activeColorTheme }) => {
+const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onChooseApplicant, onDeleteDate, onEditDate, gender, onViewProfile, activeColorTheme }) => {
     const [selectedDateId, setSelectedDateId] = useState<number | null>(myDates.length > 0 ? myDates[0].id : null);
     const [sortBy, setSortBy] = useState<'priority' | 'name' | 'age'>('priority');
 
@@ -99,8 +100,9 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
     };
 
     const handleEditDate = () => {
-        // TODO: Implement edit date functionality
-        console.log('Edit date:', selectedDate?.id);
+        if (selectedDate) {
+            onEditDate(selectedDate);
+        }
     };
 
     // Mock additional applicants for demonstration
