@@ -275,124 +275,125 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
             return a.name.localeCompare(b.name);
         } else if (sortBy === 'age') {
             return a.age - b.age;
-        }
-        return 0;
-    });
-}, [selectedDate, mockApplicants, allUsers, sortBy]);
-
-if (myDates.length === 0) {
     return (
         <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <h2 className="text-xl font-semibold text-gray-300 mb-3">You haven't created any dates yet.</h2>
             <p className="text-gray-400">Go to the "Create-A-Date" tab to post your first idea!</p>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column - My Dates List (1/3 width) */}
-                <div className="lg:col-span-1">
-                    <div className="bg-dark-2 rounded-xl p-4">
-                        <h3 className="text-base font-semibold text-white mb-3">My Dates</h3>
-                        <div className="space-y-2">
-                            {myDates.map(date => (
-                                <button 
-                                    key={date.id} 
-                                    onClick={() => setSelectedDateId(date.id)} 
-                                    className={`w-full p-3 rounded-lg text-left transition-all duration-200 ${selectedDateId === date.id ? activeClass : 'bg-dark-3 hover:bg-dark-4'}`}
-                                >
-                                   <p className="font-semibold text-sm">{date.title}</p>
-                                   <p className="text-xs opacity-80">{date.applicants.length} applicant(s)</p>
-                                   <p className="text-xs opacity-60 mt-1 truncate">{date.location}</p>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Right Column - Date Details View (2/3 width) */}
-                <div className="lg:col-span-2">
-                    {selectedDate ? (
-                        <div className="bg-dark-2 rounded-xl p-6">
-                            {/* Header with Edit Button */}
-                            <div className="flex justify-between items-start mb-6">
-                                <div className="flex-1">
-                                    <h3 className={`text-xl font-bold ${titleClass}`}>{selectedDate.title}</h3>
-                                    <div className="flex items-center gap-4 mt-2">
-                                        <p className="text-sm text-gray-400">Location: {selectedDate.location}</p>
-                                        <button 
-                                            onClick={handleGetDirections}
-                                            className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 font-semibold text-sm transition-colors"
-                                            aria-label="Get directions"
-                                        >
-                                            <MapPinIcon className="w-4 h-4" />
-                                            Directions
-                                        </button>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={handleEditDate}
-                                    className="p-2 rounded-lg bg-dark-3 hover:bg-dark-4 text-gray-400 hover:text-white transition-colors"
-                                    aria-label="Edit date"
-                                >
-                                    <PencilIcon className="w-5 h-5" />
-                                </button>
-                            </div>
-                            
-                            {/* Applicants Section */}
-                            <div className="mb-6">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h4 className="text-sm font-semibold text-white">Applicants ({sortedApplicants.length})</h4>
-                                    <select
-                                        value={sortBy}
-                                        onChange={(e) => setSortBy(e.target.value as 'priority' | 'name' | 'age')}
-                                        className="bg-dark-3 text-white text-sm rounded-lg px-3 py-1.5 border border-dark-4 focus:border-brand-pink focus:outline-none"
-                                    >
-                                        <option value="priority">Sort by Priority</option>
-                                        <option value="name">Sort by Name</option>
-                                        <option value="age">Sort by Age</option>
-                                    </select>
-                                </div>
-                                
-                                {/* Scrollable Applicant Container */}
-                                <div className="max-h-96 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-                                    {sortedApplicants.length > 0 ? (
-                                        sortedApplicants.map(user => {
-                                            const isPriority = selectedDate.priorityApplicants?.includes(user.id) ?? false;
-                                            return (
-                                                <ApplicantCard
-                                                    key={user.id}
-                                                    user={user}
-                                                    onChoose={() => onChooseApplicant(selectedDate.id, user.id)}
-                                                    isChosen={selectedDate.chosenApplicantId === user.id}
-                                                    hasChosenSomeoneElse={selectedDate.chosenApplicantId !== null && selectedDate.chosenApplicantId !== user.id}
-                                                    isMaleTheme={isMaleTheme}
-                                                    onViewProfile={onViewProfile}
-                                                    isPriority={isPriority}
-                                                />
-                                            )
-                                        })
-                                    ) : (
-                                        <p className="text-gray-500 text-center py-8">No one has expressed interest yet. Check back soon!</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Delete Button */}
-                            <div className="border-t border-dark-3 pt-4">
-                                <button 
-                                    onClick={handleDeleteClick}
-                                    className="w-full py-2.5 rounded-lg font-semibold bg-red-800/80 text-red-200 hover:bg-red-800 transition-colors"
-                                >
-                                    Delete This Date
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="bg-dark-2 rounded-xl p-6 text-center">
-                            <p className="text-gray-500">Select a date to see applicants.</p>
-                        </div>
-                    )}
-                </div>
-            </div>
         </div>
     );
-};
+}
+
+return (
+    <div className="max-w-7xl mx-auto px-4 py-6">
+        <h2 className={`text-xl font-bold text-center mb-4 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>Manage Your Dates</h2>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - My Dates List (1/3 width) */}
+            <div className="lg:col-span-1">
+                <div className="bg-dark-2 rounded-xl p-4">
+                    <h3 className="text-base font-semibold text-white mb-3">My Dates</h3>
+                    <div className="space-y-2">
+                        {myDates.map(date => (
+                            <button 
+                                key={date.id} 
+                                onClick={() => setSelectedDateId(date.id)} 
+                                className={`w-full p-3 rounded-lg text-left transition-all duration-200 ${selectedDateId === date.id ? activeClass : 'bg-dark-3 hover:bg-dark-4'}`}
+                            >
+                               <p className="font-semibold text-sm">{date.title}</p>
+                               <p className="text-xs opacity-80">{date.applicants.length} applicant(s)</p>
+                               <p className="text-xs opacity-60 mt-1 truncate">{date.location}</p>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Right Column - Date Details View (2/3 width) */}
+            <div className="lg:col-span-2">
+                {selectedDate ? (
+                    <div className="bg-dark-2 rounded-xl p-6">
+                        {/* Header with Edit Button */}
+                        <div className="flex justify-between items-start mb-6">
+                            <div className="flex-1">
+                                <h3 className={`text-xl font-bold ${titleClass}`}>{selectedDate.title}</h3>
+                                <div className="flex items-center gap-4 mt-2">
+                                    <p className="text-sm text-gray-400">Location: {selectedDate.location}</p>
+                                    <button 
+                                        onClick={handleGetDirections}
+                                        className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 font-semibold text-sm transition-colors"
+                                        aria-label="Get directions"
+                                    >
+                                        <MapPinIcon className="w-4 h-4" />
+                                        Directions
+                                    </button>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleEditDate}
+                                className="p-2 rounded-lg bg-dark-3 hover:bg-dark-4 text-gray-400 hover:text-white transition-colors"
+                                aria-label="Edit date"
+                            >
+                                <PencilIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        {/* Applicants Section */}
+                        <div className="mb-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h4 className="text-sm font-semibold text-white">Applicants ({sortedApplicants.length})</h4>
+                                <select
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value as 'priority' | 'name' | 'age')}
+                                    className="bg-dark-3 text-white text-sm rounded-lg px-3 py-1.5 border border-dark-4 focus:border-brand-pink focus:outline-none"
+                                >
+                                    <option value="priority">Sort by Priority</option>
+                                    <option value="name">Sort by Name</option>
+                                    <option value="age">Sort by Age</option>
+                                </select>
+                            </div>
+                            
+                            {/* Scrollable Applicant Container */}
+                            <div className="max-h-96 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                                {sortedApplicants.length > 0 ? (
+                                    sortedApplicants.map(user => {
+                                        const isPriority = selectedDate.priorityApplicants?.includes(user.id) ?? false;
+                                        return (
+                                            <ApplicantCard
+                                                key={user.id}
+                                                user={user}
+                                                onChoose={() => onChooseApplicant(selectedDate.id, user.id)}
+                                                isChosen={selectedDate.chosenApplicantId === user.id}
+                                                hasChosenSomeoneElse={selectedDate.chosenApplicantId !== null && selectedDate.chosenApplicantId !== user.id}
+                                                isMaleTheme={isMaleTheme}
+                                                onViewProfile={onViewProfile}
+                                                isPriority={isPriority}
+                                            />
+                                        )
+                                    })
+                                ) : (
+                                    <p className="text-gray-500 text-center py-8">No one has expressed interest yet. Check back soon!</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Delete Button */}
+                        <div className="border-t border-dark-3 pt-4">
+                            <button 
+                                onClick={handleDeleteClick}
+                                className="w-full py-2.5 rounded-lg font-semibold bg-red-800/80 text-red-200 hover:bg-red-800 transition-colors"
+                            >
+                                Delete This Date
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-dark-2 rounded-xl p-6 text-center">
+                        <p className="text-gray-500">Select a date to see applicants.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    </div>
+);
 
 export default MyDatesManager;
