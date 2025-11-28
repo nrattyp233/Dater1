@@ -254,6 +254,7 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
                         earnedBadgeIds: []
                     }
                 ];
+
                 return mockUsers.find(u => u.id === applicantId) || null;
             }
             return user;
@@ -270,11 +271,13 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
                 return a.name.localeCompare(b.name);
             } else if (sortBy === 'age') {
                 return a.age - b.age;
-            return 0;
-        } else if (sortBy === 'name') {
-            return a.name.localeCompare(b.name);
-        } else if (sortBy === 'age') {
-            return a.age - b.age;
+            } else {
+                return 0;
+            }
+        });
+    }, [selectedDate, mockApplicants, allUsers, sortBy]);
+
+if (myDates.length === 0) {
     return (
         <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <h2 className="text-xl font-semibold text-gray-300 mb-3">You haven't created any dates yet.</h2>
@@ -394,6 +397,7 @@ return (
             </div>
         </div>
     </div>
-);
+    );
+};
 
 export default MyDatesManager;
