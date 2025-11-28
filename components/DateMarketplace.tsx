@@ -189,6 +189,14 @@ const LocalEventCard: React.FC<LocalEventCardProps> = ({ event, onCreate, onView
         }
     };
 
+    // Format the event date for clear display
+    const formattedEventDate = new Date(event.date).toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short', 
+        day: 'numeric',
+        year: 'numeric'
+    });
+
     return (
         <div className="flex-shrink-0 w-72 bg-dark-2 rounded-2xl overflow-hidden border border-dark-3 shadow-lg group relative">
              <div className="relative h-full">
@@ -203,6 +211,10 @@ const LocalEventCard: React.FC<LocalEventCardProps> = ({ event, onCreate, onView
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent" />
                     <div className="relative p-4 flex flex-col justify-end h-full text-white min-h-[200px]">
                         <div className="flex-grow"></div>
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
+                            <span className="text-xs font-semibold text-cyan-300">{formattedEventDate}</span>
+                        </div>
                         <h4 className="font-bold text-lg">{event.title}</h4>
                         <p className="text-sm text-gray-300">{event.location}</p>
                     </div>
