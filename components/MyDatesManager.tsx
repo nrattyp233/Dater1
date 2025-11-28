@@ -286,13 +286,13 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
     
     return (
         <div className="max-w-7xl mx-auto px-4 py-6">
-            <h2 className={`text-2xl font-bold text-center mb-6 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>Manage Your Dates</h2>
+            <h2 className={`text-xl font-bold text-center mb-4 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>Manage Your Dates</h2>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column - My Dates List (1/3 width) */}
                 <div className="lg:col-span-1">
                     <div className="bg-dark-2 rounded-xl p-4">
-                        <h3 className="text-lg font-semibold text-white mb-4">My Dates</h3>
+                        <h3 className="text-base font-semibold text-white mb-3">My Dates</h3>
                         <div className="space-y-2">
                             {myDates.map(date => (
                                 <button 
@@ -341,7 +341,7 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
                             {/* Applicants Section */}
                             <div className="mb-6">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h4 className="font-semibold text-white">Applicants ({sortedApplicants.length})</h4>
+                                    <h4 className="text-sm font-semibold text-white">Applicants ({sortedApplicants.length})</h4>
                                     <select
                                         value={sortBy}
                                         onChange={(e) => setSortBy(e.target.value as 'priority' | 'name' | 'age')}

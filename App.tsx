@@ -794,7 +794,7 @@ const MainApp: React.FC = () => {
 
                 <div 
                     ref={scrollContainerRef}
-                    className="relative z-10 h-full overflow-y-auto p-4 scrollbar-hide"
+                    className="relative z-10 h-full overflow-y-auto p-3 scrollbar-hide"
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}

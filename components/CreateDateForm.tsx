@@ -184,8 +184,8 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, onUpdateD
 
     return (
         <>
-            <div className="max-w-xl mx-auto bg-dark-2 p-8 rounded-2xl shadow-lg border border-dark-3">
-                <h2 className={`text-3xl font-bold text-center mb-2 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>{isEditMode ? 'Edit Date' : 'Create-A-Date'}</h2>
+            <div className="max-w-lg mx-auto bg-dark-2 p-6 rounded-2xl shadow-lg border border-dark-3">
+                <h2 className={`text-2xl font-bold text-center mb-2 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>{isEditMode ? 'Edit Date' : 'Create-A-Date'}</h2>
                 
                 <div className="text-center mb-6">
                      <button 
@@ -205,18 +205,18 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, onUpdateD
                 </div>
 
 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-4">
                      <div>
-                        <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-1">Date Title</label>
-                        <input type="text" id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Sunset Picnic in the Park" className={`w-full bg-dark-3 border border-dark-3 rounded-lg p-3 text-white ${focusRingClass} transition`} />
+                        <label htmlFor="title" className="block text-xs font-medium text-gray-300 mb-1">Date Title</label>
+                        <input type="text" id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Sunset Picnic in the Park" className={`w-full bg-dark-3 border border-dark-3 rounded-lg p-1 text-white ${focusRingClass} transition`} />
                     </div>
 
                     <div>
-                        <label htmlFor="idea" className="block text-sm font-medium text-gray-300 mb-1">Simple Idea (for AI description enhancement)</label>
+                        <label htmlFor="idea" className="block text-xs font-medium text-gray-300 mb-1">Simple Idea (for AI description enhancement)</label>
                         <div className="flex gap-2">
-                            <input type="text" id="idea" value={idea} onChange={e => setIdea(e.target.value)} placeholder="e.g., Coffee and a walk" className={`w-full bg-dark-3 border border-dark-3 rounded-lg p-3 text-white ${focusRingClass} transition`} />
-                            <button type="button" onClick={handleEnhance} disabled={isGenerating} className={`px-4 py-2 ${primaryButtonBg} text-white rounded-lg flex items-center gap-2 font-semibold disabled:bg-opacity-50 disabled:cursor-wait hover:opacity-90 transition`}>
-                                <SparklesIcon className="w-5 h-5"/>
+                            <input type="text" id="idea" value={idea} onChange={e => setIdea(e.target.value)} placeholder="e.g., Coffee and a walk" className={`w-full bg-dark-3 border border-dark-3 rounded-lg p-1 text-white ${focusRingClass} transition`} />
+                            <button type="button" onClick={handleEnhance} disabled={isGenerating} className={`px-3 py-1 ${primaryButtonBg} text-white rounded-lg flex items-center gap-2 font-semibold disabled:bg-opacity-50 disabled:cursor-wait hover:opacity-90 transition`}>
+                                <SparklesIcon className="w-4 h-4"/>
                                 {isGenerating ? 'Enhancing...' : 'Enhance'}
                             </button>
                         </div>
@@ -224,14 +224,14 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, onUpdateD
 
                     <div>
                         <label htmlFor="description" className="block text-sm font-medium text-gray-300 mb-1">Description</label>
-                        <textarea id="description" value={description} onChange={e => setDescription(e.target.value)} rows={4} placeholder="Describe the date..." className={`w-full bg-dark-3 border border-dark-3 rounded-lg p-3 text-white ${focusRingClass} transition`}></textarea>
+                        <textarea id="description" value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Describe the date..." className={`w-full bg-dark-3 border border-dark-3 rounded-lg p-2 text-white ${focusRingClass} transition`}></textarea>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label htmlFor="location" className="block text-sm font-medium text-gray-300 mb-1">Location</label>
                             <div className="flex gap-2">
-                                <input type="text" id="location" value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g., Central Park" className={`w-full bg-dark-3 border border-dark-3 rounded-lg p-3 text-white ${focusRingClass} transition`} />
+                                <input type="text" id="location" value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g., Central Park" className={`w-full bg-dark-3 border border-dark-3 rounded-lg p-2 text-white ${focusRingClass} transition`} />
                                 <button
                                     type="button"
                                     onClick={handleSuggestLocations}
@@ -249,11 +249,11 @@ const CreateDateForm: React.FC<CreateDateFormProps> = ({ onCreateDate, onUpdateD
                         </div>
                         <div>
                             <label htmlFor="dateTime" className="block text-sm font-medium text-gray-300 mb-1">Date & Time</label>
-                            <input type="datetime-local" id="dateTime" value={dateTime} onChange={e => setDateTime(e.target.value)} className={`w-full bg-dark-3 border border-dark-3 rounded-lg p-3 text-white ${focusRingClass} transition`} />
+                            <input type="datetime-local" id="dateTime" value={dateTime} onChange={e => setDateTime(e.target.value)} className={`w-full bg-dark-3 border border-dark-3 rounded-lg p-2 text-white ${focusRingClass} transition`} />
                         </div>
                     </div>
                     
-                    <button type="submit" disabled={isSubmitting} className={`w-full py-3 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r ${primaryButtonGradient} text-white hover:opacity-90 ${primaryGlow} disabled:opacity-60 disabled:cursor-wait`}>
+                    <button type="submit" disabled={isSubmitting} className={`w-full py-2 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r ${primaryButtonGradient} text-white hover:opacity-90 ${primaryGlow} disabled:opacity-60 disabled:cursor-wait`}>
                         {isSubmitting ? (isEditMode ? 'Updating...' : 'Posting...') : (isEditMode ? 'Update Date' : 'Post Date')}
                     </button>
                 </form>

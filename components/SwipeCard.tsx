@@ -159,10 +159,10 @@ const SwipeCard = forwardRef<SwipeCardRef, SwipeCardProps>(({
         )}
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/20 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 p-6 text-white w-full pointer-events-none select-none">
-          <h2 className="text-3xl font-bold flex items-center gap-2 drop-shadow-md">
+        <div className="absolute bottom-0 left-0 p-4 text-white w-full pointer-events-none select-none">
+          <h2 className="text-2xl font-bold flex items-center gap-2 drop-shadow-md">
             <span>{user.name}, {user.age}</span>
-            {user.isVerified && <CheckCircleIcon className="w-7 h-7 text-blue-400" />}
+            {user.isVerified && <CheckCircleIcon className="w-5 h-5 text-blue-400" />}
           </h2>
           
            {(isVibeLoading || profileVibe) && (
@@ -177,7 +177,7 @@ const SwipeCard = forwardRef<SwipeCardRef, SwipeCardProps>(({
             </div>
           )}
           
-          <p className="mt-2 text-light-2 drop-shadow-sm">{user.bio}</p>
+          <p className="text-sm mt-1 line-clamp-2 opacity-90">{user.bio}</p>
           <div className="mt-4 flex flex-wrap gap-2">
             {user.interests.map(interest => (
               <span key={interest} className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full backdrop-blur-sm">{interest}</span>
