@@ -270,24 +270,21 @@ const MyDatesManager: React.FC<MyDatesManagerProps> = ({ myDates, allUsers, onCh
                 return a.name.localeCompare(b.name);
             } else if (sortBy === 'age') {
                 return a.age - b.age;
-            }
             return 0;
-        });
-    }, [selectedDate, mockApplicants, allUsers, sortBy]);
+        } else if (sortBy === 'name') {
+            return a.name.localeCompare(b.name);
+        } else if (sortBy === 'age') {
+            return a.age - b.age;
+        }
+        return 0;
+    });
+}, [selectedDate, mockApplicants, allUsers, sortBy]);
 
-    if (myDates.length === 0) {
-        return (
-            <div className="text-center text-gray-400">
-                <h2 className="text-2xl font-bold text-gray-300">You haven't created any dates yet.</h2>
-                <p className="mt-2">Go to the "Create-A-Date" tab to post your first idea!</p>
-            </div>
-        );
-    }
-    
+if (myDates.length === 0) {
     return (
-        <div className="max-w-7xl mx-auto px-4 py-6">
-            <h2 className={`text-xl font-bold text-center mb-4 bg-gradient-to-r ${activeColorTheme.gradientFrom} ${activeColorTheme.gradientTo} text-transparent bg-clip-text`}>Manage Your Dates</h2>
-            
+        <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <h2 className="text-xl font-semibold text-gray-300 mb-3">You haven't created any dates yet.</h2>
+            <p className="text-gray-400">Go to the "Create-A-Date" tab to post your first idea!</p>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column - My Dates List (1/3 width) */}
                 <div className="lg:col-span-1">
