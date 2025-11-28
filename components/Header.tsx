@@ -33,9 +33,9 @@ const NavButton: React.FC<NavButtonProps> = ({ isActive, onClick, children, aria
 const Header: React.FC<HeaderProps> = ({ currentView, setCurrentView, activeColorTheme }) => {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-dark-2/80 backdrop-blur-sm">
-      <div className="container mx-auto px-4 h-20 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-            <div className="w-9 h-9">
+      <div className="container mx-auto px-4 h-16 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+            <div className="w-8 h-8">
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     {/* Heart Path */}
                     <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#F91880"/>
@@ -44,38 +44,38 @@ const Header: React.FC<HeaderProps> = ({ currentView, setCurrentView, activeColo
                 </svg>
             </div>
           <h1
-            className="text-2xl font-medium font-montserrat tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-brand-pink via-purple-500 to-cyan-400 bg-[length:200%_auto] animate-text-gradient-flow"
+            className="text-xl font-medium font-montserrat tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-brand-pink via-purple-500 to-cyan-400 bg-[length:200%_auto] animate-text-gradient-flow"
           >
             Create-A-Date
           </h1>
         </div>
         <nav className="flex items-center space-x-1 bg-dark-3 p-1 rounded-full overflow-x-auto scrollbar-hide max-w-[60vw] md:max-w-none">
           <NavButton isActive={currentView === View.Swipe} onClick={() => setCurrentView(View.Swipe)} ariaLabel="Swipe profiles" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
-            <HeartIcon className="w-6 h-6" />
+            <HeartIcon className="w-5 h-5" />
           </NavButton>
           <NavButton isActive={currentView === View.LocalPeople} onClick={() => setCurrentView(View.LocalPeople)} ariaLabel="People Nearby" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
-            <MapPinIcon className="w-6 h-6" />
+            <MapPinIcon className="w-5 h-5" />
           </NavButton>
           <NavButton isActive={currentView === View.Dates} onClick={() => setCurrentView(View.Dates)} ariaLabel="Browse dates" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
-            <CalendarIcon className="w-6 h-6" />
+            <CalendarIcon className="w-5 h-5" />
           </NavButton>
           <NavButton isActive={currentView === View.Create} onClick={() => setCurrentView(View.Create)} ariaLabel="Create a date" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
-            <PlusIcon className="w-6 h-6" />
+            <PlusIcon className="w-5 h-5" />
           </NavButton>
            <NavButton isActive={currentView === View.Leaderboard} onClick={() => setCurrentView(View.Leaderboard)} ariaLabel="Leaderboard" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
-            <TrophyIcon className="w-6 h-6" />
+            <TrophyIcon className="w-5 h-5" />
           </NavButton>
           <NavButton isActive={currentView === View.Chat} onClick={() => setCurrentView(View.Chat)} ariaLabel="My chats" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
-            <ChatIcon className="w-6 h-6" />
+            <ChatIcon className="w-5 h-5" />
           </NavButton>
           <NavButton isActive={currentView === View.MyDates} onClick={() => setCurrentView(View.MyDates)} ariaLabel="My dates" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
-            <UserIcon className="w-6 h-6" />
+            <UserIcon className="w-5 h-5" />
           </NavButton>
            <NavButton isActive={currentView === View.BusinessSignup} onClick={() => setCurrentView(View.BusinessSignup)} ariaLabel="For Businesses" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
-            <BuildingIcon className="w-6 h-6" />
+            <BuildingIcon className="w-5 h-5" />
           </NavButton>
            <NavButton isActive={currentView === View.Profile} onClick={() => setCurrentView(View.Profile)} ariaLabel="Profile settings" activeColor={activeColorTheme.bg} activeGlow={activeColorTheme.glow}>
-            <CogIcon className="w-6 h-6" />
+            <CogIcon className="w-5 h-5" />
           </NavButton>
         </nav>
       </div>

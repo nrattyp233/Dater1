@@ -786,7 +786,7 @@ const MainApp: React.FC = () => {
         >
             <Header currentView={currentView} setCurrentView={setCurrentView} activeColorTheme={activeColorTheme} />
             
-            <main className="pt-20 flex-grow overflow-hidden relative">
+            <main className="pt-16 flex-grow overflow-hidden relative">
                 <div className="absolute inset-0 pointer-events-none overflow-hidden">
                         <div className={`absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-gradient-to-r ${activeColorTheme.gradientFrom} to-transparent rounded-full blur-[100px] opacity-20`}></div>
                         <div className={`absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-gradient-to-r ${activeColorTheme.gradientTo} to-transparent rounded-full blur-[120px] opacity-20`}></div>
